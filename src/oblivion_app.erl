@@ -38,7 +38,7 @@ start_webserver() ->
 	{ok, ServerID} = kill_bill:config_server(ServerConfig),
 	
 	RestConfig = {webapp_config, oblivion_rest, [
-				{context, "/hpserver"},
+				{context, "/"},
 				{action, [
 						{"/", oblivion_rest}		
 						]}

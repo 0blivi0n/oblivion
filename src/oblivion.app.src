@@ -19,7 +19,7 @@
 	{vsn, "0.0.1"},
 	{modules, [
 	]},
-	{registered, [oblivion_sup]},
+	{registered, [oblivion]},
 	{applications, [
 		kernel,
 		stdlib,

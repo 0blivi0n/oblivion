@@ -16,3 +16,9 @@
 
 -define(SUCCESS_TAG, <<"success">>).
 -define(ERROR_TAG, <<"error">>).
+
+-define(DATA_TAG, <<"data">>).
+-define(CACHE_LIST_TAG, <<"cacheList">>).
+
+-define(CACHE_OPTION_MAX_AGE, <<"maxAge">>).
+-define(CACHE_OPTION_MAX_SIZE, <<"maxSize">>).

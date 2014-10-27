@@ -23,8 +23,9 @@
 -export([init/1]).
 
 start_link() ->
-	supervisor:start_link({local, ?MODULE}, ?MODULE, []).
+	supervisor:start_link(?MODULE, []).
 
 init([]) ->
-	Procs = [],
-	{ok, {{one_for_one, 10, 10}, Procs}}.
+	Oblivion = {oblivion,{oblivion, start_link, []}, permanent, infinity, worker, [oblivion]},
+	Procs = [Oblivion],
+	{ok, {{one_for_one, 5, 60}, Procs}}.

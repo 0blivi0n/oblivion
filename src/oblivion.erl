@@ -16,7 +16,16 @@
 
 -module(oblivion).
 
--export([start/0]).
+-behaviour(gen_server).
+
+-define(SERVER, {local, ?MODULE}).
+
+%% ====================================================================
+%% API functions
+%% ====================================================================
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
+-export([start/0, start_link/0]).
+-export([create_cache/2]).
 
 start() ->
 	ok = application:start(crypto),
@@ -29,3 +38,47 @@ start() ->
 	ok = application:start(kill_bill),
 	ok = application:start(oblivion).
 
+start_link() ->
+	gen_server:start_link(?SERVER, ?MODULE, [], []).
+
+create_cache(CacheName, Options) ->
+	gen_server:call(?MODULE, {create_cache, CacheName, Options}).
+
+%% ====================================================================
+%% Behavioural functions 
+%% ====================================================================
+
+-record(state, {}).
+
+%% init
+init([]) ->
+	process_flag(trap_exit, true),	
+	error_logger:info_msg("~p starting on [~p]...\n", [?MODULE, self()]),
+	{ok, #state{}}.
+
+%% handle_call
+handle_call({create_cache, CacheName, Options}, _From, State) ->
+	ServerOptions = Options ++ [{cluster_nodes, all}, 
+			{sync_mode, lazy}],
+	Reply = gibreel:create_cache(CacheName, ServerOptions),
+	{reply, Reply, State}.
+
+%% handle_cast
+handle_cast(_Msg, State) ->
+	{noreply, State}.
+
+%% handle_info
+handle_info(_Info, State) ->
+	{noreply, State}.
+
+%% terminate
+terminate(_Reason, _State) ->
+	ok.
+
+%% code_change
+code_change(_OldVsn, State, _Extra) ->
+	{ok, State}.
+
+%% ====================================================================
+%% Internal functions
+%% ====================================================================
