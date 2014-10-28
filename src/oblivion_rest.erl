@@ -56,7 +56,7 @@ handle(<<"PUT">>, [Cache, Key], Req) ->
 % DELETE /{cache}/{key}
 handle(<<"DELETE">>, [Cache, Key], Req) ->
 	CacheName = cache_name(Cache),
-	Response = g_cache:delete(CacheName, Key),
+	Response = g_cache:remove(CacheName, Key),
 	Reply = cache_to_reply(Response),
 	{json, Reply, Req};
 
@@ -74,7 +74,7 @@ handle(<<"POST">>, [Cache], Req) ->
 	Options = lists:foldl(fun({?CACHE_OPTION_MAX_AGE, MaxAge}, Acc) -> [{max_age, MaxAge}, 
 						{purge_interval, MaxAge}|Acc];
 				({?CACHE_OPTION_MAX_SIZE, MaxSize}, Acc) -> [{max_size, MaxSize}|Acc]
-			end, [], jsondoc:to_proplist(JSon)),
+			end, [], JSon),
 	Reply = case oblivion:create_cache(CacheName, Options) of
 		ok -> reply(ok);
 		{error, duplicated} -> reply(?ERROR(?ERROR_CACHE_ALREDY_EXISTS));
@@ -111,19 +111,11 @@ reply(ok) -> success_msg([]);
 reply(?SUCCESS(Fields)) -> success_msg(Fields);
 reply(?ERROR(Error)) -> error_msg(Error).
 
-error_msg(Error) ->
-	Reply = [
-			{?SUCCESS_TAG, false},
-			{?ERROR_TAG, Error}
-			],
-	jsondoc:from_proplist(Reply).
+error_msg(Error) ->	[{?SUCCESS_TAG, false},	{?ERROR_TAG, Error}].
 
-success_msg(Fields) ->
-	Reply = [{?SUCCESS_TAG, true}] ++ Fields,
-	jsondoc:from_proplist(Reply).
+success_msg(Fields) -> [{?SUCCESS_TAG, true}] ++ Fields.
 
-cache_name(Cache) ->
-	binary_to_atom(Cache, utf8).
+cache_name(Cache) -> binary_to_atom(Cache, utf8).
 
 cache_to_reply({ok, Value}) -> reply(?SUCCESS(?DATA_TAG, Value));
 cache_to_reply(not_found) -> reply(?ERROR(?ERROR_KEY_NOT_FOUND));
