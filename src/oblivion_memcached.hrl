@@ -1,6 +1,6 @@
 %%
 %% Copyright 2014 Joaquim Rocha <jrocha@gmailbox.org>
-%% 
+%%
 %% Licensed under the Apache License, Version 2.0 (the "License");
 %% you may not use this file except in compliance with the License.
 %% You may obtain a copy of the License at
@@ -15,7 +15,6 @@
 %%
 
 -define(HEADER_SIZE_REQUEST, 24).
--define(DEFAULT_FLAG_VALUE, 16#deadbeef). %% TODO Nao encontrei informacao sobre a flag
 
 -define(MAGIC_BYTE_REQUEST,  16#80).
 -define(MAGIC_BYTE_RESPONSE, 16#81).
@@ -66,8 +65,8 @@
 -define(OPCODE_PREPEND_QUIET,        16#1A).
 -define(OPCODE_VERBOSITY,            16#1b).
 -define(OPCODE_TOUCH,                16#1c).
--define(OPCODE_GAT,                  16#1d).
--define(OPCODE_GAT_QUIET,            16#1e).
+-define(OPCODE_GET_AND_TOUCH,        16#1d).
+-define(OPCODE_GET_AND_TOUCH_QUIET,  16#1e).
 -define(OPCODE_SASL_LIST_MECHS,      16#20).
 -define(OPCODE_SASL_AUTH,            16#21).
 -define(OPCODE_SASL_STEP,            16#22).
@@ -95,3 +94,7 @@
 -define(OPCODE_TAP_VBUCKET_SET,      16#45).
 -define(OPCODE_TAP_CHECKPOINT_START, 16#46).
 -define(OPCODE_TAP_CHECKPOINT_END,   16#47).
+
+-define(DATA_TYPE_RAW_BYTES, 16#00).
+
+-define(DEFAULT_DATA_VERSION_CHECK, 16#00).
