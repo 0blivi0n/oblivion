@@ -58,7 +58,7 @@ loop(Socket, Transport, CacheName) ->
 		case Transport:recv(Socket, ?HEADER_SIZE_REQUEST, 60000) of %% TODO Configurar o timeout de espera
 			{ok, Data} ->
 				{ok, Response} = process_request(Data, Transport, Socket, CacheName),
-				%% TODO A reposta pode ser 0 ou mais pacotes
+				%% TODO A reposta pode ser 0 ou mais pacotes -> <<>> resposta vazia
 				error_logger:info_msg("Response to send ~p \n", [Response]), %% TODO DEBUG
 				ok = Transport:send(Socket, Response),
 				error_logger:info_msg("Response sent\n", []), %% TODO DEBUG
@@ -109,6 +109,21 @@ get_response_packets(Operation, StatusCode, Key, Value, Extras, Opaque, CAS) ->
 	  CAS:64,
 	  Extras/binary, Key/binary, Value/binary>>.
 
+store_and_respond(Operation, Key, Value, <<Flag:32, Expiration:32>>, Opaque, CAS, CacheName) ->
+	%% TODO Expiration
+ 	Response = case g_cache:store(CacheName, Key, {CAS, <<Flag:32>>, Value}) of
+ 		ok ->
+			if
+				Operation == ?OPCODE_SET_QUIET orelse
+				Operation == ?OPCODE_ADD_QUIET orelse
+				Operation == ?OPCODE_REPLACE_QUIET -> <<>>; % No response on success
+				true -> get_success_response(Operation, CAS, Opaque)
+			end;
+ 		no_cache -> get_error_response(Operation, ?RESPONSE_STATUS_INTERNAL_ERROR, <<"Unexpected error storing values: no_cache">>, Opaque)
+ 	end,
+ 
+ 	{ok, Response}.
+
 %%
 %% Request processing functions
 %%
@@ -123,12 +138,19 @@ process_request(<<?MAGIC_BYTE_REQUEST:8, Operation:8, KeyLength:16, ExtrasLength
 process_request(_Other, _Transport, _Socket, _CacheName) ->
 	{error, unknown_request_header_format}.
 
-%% TODO TERMINAR
- process_operation(Operation=?OPCODE_GET, Key, Value, Extras, Opaque, CAS, CacheName) ->
- 	error_logger:info_msg("Operation GET ~p | Key ~p | Value ~p | Extras ~p | Opaque ~p | CAS ~p | CacheName ~p\n", [Operation, Key, Value, Extras, Opaque, CAS, CacheName]), %% TODO DEBUG
+%%
+%% Get and Get Key
+%%
+process_operation(Operation, Key, Value, Extras, Opaque, _CAS, CacheName) when Operation == ?OPCODE_GET
+                                                                        orelse Operation == ?OPCODE_GET_QUIET
+                                                                        orelse Operation == ?OPCODE_GET_KEY
+                                                                        orelse Operation == ?OPCODE_GET_KEY_QUIET ->
+ 	error_logger:info_msg("Operation GET ~p | Key ~p | Value ~p | Extras ~p | Opaque ~p | CacheName ~p\n", [Operation, Key, Value, Extras, Opaque, CacheName]), %% TODO DEBUG
  
  	Response = case g_cache:get(CacheName, Key) of
- 		{ok, Content} -> get_success_response(Operation, Content, Opaque);
+ 		{ok, Content} when Operation == ?OPCODE_GET orelse Operation == ?OPCODE_GET_QUIET -> get_success_response(Operation, Content, Opaque);
+ 		{ok, Content} -> get_success_response(Operation, Key, Content, Opaque);
+ 		not_found when Operation == ?OPCODE_GET_QUIET orelse Operation == ?OPCODE_GET_KEY_QUIET -> <<>>; %% No response
  		not_found -> get_error_response(Operation, ?RESPONSE_STATUS_KEY_NOT_FOUND, <<"Not found">>, Opaque);
  		Error ->
  			ErrorBin = atom_to_binary(Error, utf8),
@@ -137,17 +159,130 @@ process_request(_Other, _Transport, _Socket, _CacheName) ->
  	end,
  
  	{ok, Response};
- process_operation(Operation=?OPCODE_SET, Key, Value, Extras = <<Flag:32, Expiration:32>>, Opaque, CAS, CacheName) ->
- 	error_logger:info_msg("Operation SET ~p | Key ~p | Value ~p | Extras ~p | Opaque ~p | CAS ~p | CacheName ~p\n", [Operation, Key, Value, Extras, Opaque, CAS, CacheName]), %% TODO DEBUG
+
+%%
+%% Get And Touch
+%%
+process_operation(Operation, Key, Value, Extras, Opaque, _CAS, CacheName) when Operation == ?OPCODE_GET_AND_TOUCH
+                                                                        orelse Operation == ?OPCODE_GET_AND_TOUCH_QUIET ->
+ 	error_logger:info_msg("Operation GET AND TOUCH ~p | Key ~p | Value ~p | Extras ~p | Opaque ~p | CacheName ~p\n", [Operation, Key, Value, Extras, Opaque, CacheName]), %% TODO DEBUG
  
- 	%% TODO Validacoes da versao (CAS)
- 	Response = case g_cache:store(CacheName, Key, {CAS, <<Flag:32>>, Value}) of
- 		ok -> get_success_response(Operation, CAS, Opaque);
- 		no_cache -> get_error_response(Operation, ?RESPONSE_STATUS_INTERNAL_ERROR, <<"Unexpected error storing values: no_cache">>, Opaque)
+ 	Response = case g_cache:get(CacheName, Key) of %% TODO MUDAR PARA A NOVA VERSAO COM TOUCH
+ 		{ok, Content} -> get_success_response(Operation, Content, Opaque);
+ 		not_found when Operation == ?OPCODE_GET_AND_TOUCH_QUIET -> <<>>; %% No response
+ 		not_found -> get_error_response(Operation, ?RESPONSE_STATUS_KEY_NOT_FOUND, <<"Not found">>, Opaque);
+ 		Error ->
+ 			ErrorBin = atom_to_binary(Error, utf8),
+ 			Message = <<"Unexpected error querying cache: ", ErrorBin/binary>>,
+ 			get_error_response(Operation, ?RESPONSE_STATUS_INTERNAL_ERROR, Message, Opaque)
  	end,
  
  	{ok, Response};
 
+%%
+%% Set, Add, Replace
+%%
+process_operation(Operation, Key, Value, Extras, Opaque, CAS, CacheName) when CAS == 0
+                                                                      andalso (Operation == ?OPCODE_SET
+                                                                        orelse Operation == ?OPCODE_SET_QUIET) ->
+ 	error_logger:info_msg("Operation SET ~p | Key ~p | Value ~p | Extras ~p | Opaque ~p | CAS ~p | CacheName ~p\n", [Operation, Key, Value, Extras, Opaque, CAS, CacheName]), %% TODO DEBUG
+
+	store_and_respond(Operation, Key, Value, Extras, Opaque, CAS, CacheName);
+
+process_operation(Operation, Key, Value, Extras, Opaque, CAS, CacheName) when Operation == ?OPCODE_SET
+                                                                       orelse Operation == ?OPCODE_ADD
+                                                                       orelse Operation == ?OPCODE_REPLACE
+                                                                       orelse Operation == ?OPCODE_SET_QUIET
+                                                                       orelse Operation == ?OPCODE_ADD_QUIET
+                                                                       orelse Operation == ?OPCODE_REPLACE_QUIET ->
+ 	error_logger:info_msg("Operation SET ~p | Key ~p | Value ~p | Extras ~p | Opaque ~p | CAS ~p | CacheName ~p\n", [Operation, Key, Value, Extras, Opaque, CAS, CacheName]), %% TODO DEBUG
+
+	case gcache:get(CacheName, Key) of
+		{ok, {StoredCAS, _Flag, _Value}} ->
+			if
+				Operation == ?OPCODE_ADD orelse Operation == ?OPCODE_ADD_QUIET ->
+					get_error_response(Operation, ?RESPONSE_STATUS_KEY_EXISTS, <<"Add operation on existent key">>, Opaque);
+				CAS == 0 -> store_and_respond(Operation, Key, Value, Extras, Opaque, CAS, CacheName);
+				CAS > 0 andalso StoredCAS /= CAS -> get_error_response(Operation, ?RESPONSE_STATUS_INVALID_ARGUMENTS, <<"Invalid CAS">>, Opaque);
+				true -> store_and_respond(Operation, Key, Value, Extras, Opaque, CAS, CacheName)
+			end;
+ 		not_found ->
+			if
+				Operation == ?OPCODE_REPLACE orelse Operation == ?OPCODE_REPLACE_QUIET ->
+					get_error_response(Operation, ?RESPONSE_STATUS_KEY_NOT_FOUND, <<"Replace operation on inexistent key">>, Opaque);
+				true -> store_and_respond(Operation, Key, Value, Extras, Opaque, CAS, CacheName)
+			end;
+ 		Error ->
+ 			ErrorBin = atom_to_binary(Error, utf8),
+ 			Message = <<"Unexpected error querying cache: ", ErrorBin/binary>>,
+ 			get_error_response(Operation, ?RESPONSE_STATUS_INTERNAL_ERROR, Message, Opaque)
+	end;
+
+%%
+%% Delete
+%%
+process_operation(Operation, Key, Value, Extras, Opaque, CAS, CacheName) when Operation == ?OPCODE_DELETE
+                                                                       orelse Operation == ?OPCODE_DELETE_QUIET ->
+ 	error_logger:info_msg("Operation DELETE ~p | Key ~p | Value ~p | Extras ~p | Opaque ~p | CAS ~p | CacheName ~p\n", [Operation, Key, Value, Extras, Opaque, CAS, CacheName]), %% TODO DEBUG
+
+	%% TODO Validar o CAS?
+	case gcache:remove(CacheName, Key) of
+		ok ->
+			if
+				Operation == ?OPCODE_DELETE_QUIET -> <<>>; % No response on success %% TODO CONFIRMAR
+				true -> get_success_response(Operation, CAS, Opaque)
+			end;
+ 		no_cache -> get_error_response(Operation, ?RESPONSE_STATUS_INTERNAL_ERROR, <<"Unexpected error storing values: no_cache">>, Opaque)
+	end;
+
+%%
+%% Quit
+%%
+process_operation(Operation, Key, Value, Extras, Opaque, CAS, CacheName) when Operation == ?OPCODE_QUIT
+                                                                       orelse Operation == ?OPCODE_QUIT_QUIET ->
+ 	error_logger:info_msg("Operation QUIT ~p | Key ~p | Value ~p | Extras ~p | Opaque ~p | CAS ~p | CacheName ~p\n", [Operation, Key, Value, Extras, Opaque, CAS, CacheName]), %% TODO DEBUG
+
+	%% TODO E necessario fechar a ligacao depois de responder
+	get_success_response(Operation, CAS, Opaque);
+
+%%
+%% Flush
+%%
+process_operation(Operation, Key, Value, Extras = <<Expiration:32>>, Opaque, CAS, CacheName) when Operation == ?OPCODE_FLUSH
+                                                                                           orelse Operation == ?OPCODE_FLUSH_QUIET ->
+ 	error_logger:info_msg("Operation FLUSH ~p | Key ~p | Value ~p | Extras ~p | Opaque ~p | CAS ~p | CacheName ~p\n", [Operation, Key, Value, Extras, Opaque, CAS, CacheName]), %% TODO DEBUG
+
+	%% TODO O Gibreel nao permite o flush. Podemos criar um timer para depois invocar o delete / create ou apagar os elementos 1 a 1. A reposta deve ser enviada logo.
+	ok = gibreel:delete_cache(CacheName),
+	ok = gibreel:create_cache(CacheName),
+	get_success_response(Operation, ?DEFAULT_DATA_VERSION_CHECK, Opaque);
+
+%%
+%% No operation
+%%
+process_operation(?OPCODE_NO_OP, _Key, _Value, _Extras, Opaque, _CAS, _CacheName) ->
+ 	error_logger:info_msg("Operation NO OP\n", []), %% TODO DEBUG
+	get_success_response(?OPCODE_NO_OP, ?DEFAULT_DATA_VERSION_CHECK, Opaque);
+
+%%
+%% Version
+%%
+process_operation(?OPCODE_VERSION, _Key, _Value, _Extras, Opaque, _CAS, _CacheName) ->
+ 	error_logger:info_msg("Operation VERSION\n", []), %% TODO DEBUG
+	%% TODO Obter a versao da aplicacao
+	get_success_response(?OPCODE_VERSION, <<>>, {?DEFAULT_DATA_VERSION_CHECK, <<>>, <<"1.2.3">>}, Opaque);
+
+%%
+%% Touch
+%%
+process_operation(?OPCODE_TOUCH, Key, Value, Extras = <<Expiration:32>>, Opaque, CAS, CacheName) ->
+ 	error_logger:info_msg("Operation TOUCH | Key ~p | Value ~p | Extras ~p | Opaque ~p | CAS ~p | CacheName ~p\n", [Key, Value, Extras, Opaque, CAS, CacheName]), %% TODO DEBUG
+
+	%% TODO passar o expiration
+	ok = gibreel:touch(CacheName, Key),
+	get_success_response(?OPCODE_TOUCH, ?DEFAULT_DATA_VERSION_CHECK, Opaque);
+
+%% TODO OPCODE_STAT -> retorna indicadores do servidor - permite pesquisar os indicadores por chave
 
 %% Unsupported and unknown operations
 process_operation(Operation, _Key, _Value, _Extras, Opaque, _CAS, _CacheName) ->
@@ -157,3 +292,4 @@ process_operation(Operation, _Key, _Value, _Extras, Opaque, _CAS, _CacheName) ->
 	end,
 	error_logger:info_msg("Operation ~p | StatusCode ~p | Message ~p \n", [Operation, StatusCode, Message]), %% TODO DEBUG
 	{ok, get_error_response(Operation, StatusCode, Message, Opaque)}.
+
