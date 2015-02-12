@@ -1,6 +1,5 @@
-%%
 %% Copyright 2014 Joaquim Rocha <jrocha@gmailbox.org>
-%% 
+%%
 %% Licensed under the Apache License, Version 2.0 (the "License");
 %% you may not use this file except in compliance with the License.
 %% You may obtain a copy of the License at
@@ -23,7 +22,7 @@
 %% ====================================================================
 %% API functions
 %% ====================================================================
--export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
+-export([code_change/3, handle_call/3, handle_cast/2, handle_info/2, init/1, terminate/2]).
 -export([start/0, start_link/0]).
 -export([create_cache/2]).
 
@@ -45,40 +44,36 @@ create_cache(CacheName, Options) ->
 	gen_server:call(?MODULE, {create_cache, CacheName, Options}).
 
 %% ====================================================================
-%% Behavioural functions 
+%% Behavioural functions
 %% ====================================================================
 
 -record(state, {}).
 
 %% init
 init([]) ->
-	process_flag(trap_exit, true),	
+	process_flag(trap_exit, true),
 	error_logger:info_msg("~p starting on [~p]...\n", [?MODULE, self()]),
 	{ok, #state{}}.
 
 %% handle_call
 handle_call({create_cache, CacheName, Options}, _From, State) ->
-	ServerOptions = Options ++ [{cluster_nodes, all}, 
-			{sync_mode, lazy}],
+	ServerOptions = Options ++ [{cluster_nodes, all}, {sync_mode, lazy}],
 	Reply = gibreel:create_cache(CacheName, ServerOptions),
 	{reply, Reply, State}.
 
 %% handle_cast
-handle_cast(_Msg, State) ->
-	{noreply, State}.
+handle_cast(_Msg, State) -> {noreply, State}.
 
 %% handle_info
-handle_info(_Info, State) ->
-	{noreply, State}.
+handle_info(_Info, State) -> {noreply, State}.
 
 %% terminate
-terminate(_Reason, _State) ->
-	ok.
+terminate(_Reason, _State) -> ok.
 
 %% code_change
-code_change(_OldVsn, State, _Extra) ->
-	{ok, State}.
+code_change(_OldVsn, State, _Extra) -> {ok, State}.
 
 %% ====================================================================
 %% Internal functions
 %% ====================================================================
+

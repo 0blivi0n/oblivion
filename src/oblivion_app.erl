@@ -1,6 +1,6 @@
 %%
 %% Copyright 2014 Joaquim Rocha <jrocha@gmailbox.org>
-%% 
+%%
 %% Licensed under the Apache License, Version 2.0 (the "License");
 %% you may not use this file except in compliance with the License.
 %% You may obtain a copy of the License at
@@ -19,54 +19,23 @@
 -behaviour(application).
 
 -export([start/2]).
+
 -export([stop/1]).
 
 start(_Type, _Args) ->
 	ok = start_webserver(),
-	ok = start_memcached(),
-	
 	oblivion_sup:start_link().
 
-stop(_State) ->
-	ok.
+stop(_State) -> ok.
 
 start_webserver() ->
-	{ok, RestPort} = application:get_env(oblivion, oblivion_rest_port),
-	
-	ServerConfig = {server_config, oblivion_server, [
-				{port, RestPort}
-				]},
+	{ok, HTTPPort} = application:get_env(oblivion, oblivion_http_port),
+	ServerConfig = {server_config, oblivion_server, [{port, HTTPPort}]},
 	{ok, ServerID} = kill_bill:config_server(ServerConfig),
-	
-	RestConfig = {webapp_config, oblivion_rest, [
-				{context, "/"},
-				{action, [
-						{"/", oblivion_rest}		
-						]}
-				]},
-	ok = kill_bill:deploy(ServerID, RestConfig),
-	
+	HTTPConfig = {webapp_config, oblivion_http,
+			[{context, "/"},
+				{action, [{oblivion_filter, [{"/", oblivion_rest}]}]},
+				{session_timeout, none}]},
+	ok = kill_bill:deploy(ServerID, HTTPConfig),
 	ok = kill_bill:start_server(ServerID),
-	ok.
-
-start_memcached() ->
-	%% http://ninenines.eu/docs/en/ranch/HEAD/guide/listeners/
-	%% TODO configuracoes
-	%% max_connections -> default 1024
-	%% {ok, _} = ranch:start_listener(tcp_echo, 100,
-	%%     ranch_tcp, [{port, 5555}, {max_connections, 100}],
-	%%     echo_protocol, []
-	%% ).
-	%% {ok, _} = ranch:start_listener(tcp_echo, 100,
-	%%     ranch_tcp, [{port, 5555}, {max_connections, infinity}],
-	%%     echo_protocol, []
-	%% ).
-	%%
-	%% http://ninenines.eu/docs/en/ranch/HEAD/guide/transports/
-	%% ranch_tcp e um transport. se for necessario fazer um proprio, behaviour ranch_transport
-	%%
-	%% http://ninenines.eu/docs/en/ranch/HEAD/guide/protocols/
-	%% oblivion_memcached e um protocol, behaviour ranch_protocol
-	
-	{ok, _} = ranch:start_listener(xpto_echo, 1, ranch_tcp, [{port, 5555}], oblivion_memcached, []),
 	ok.

@@ -1,6 +1,6 @@
 %%
 %% Copyright 2014 Joaquim Rocha <jrocha@gmailbox.org>
-%% 
+%%
 %% Licensed under the Apache License, Version 2.0 (the "License");
 %% you may not use this file except in compliance with the License.
 %% You may obtain a copy of the License at
@@ -22,10 +22,10 @@
 
 -export([init/1]).
 
-start_link() ->
-	supervisor:start_link(?MODULE, []).
+start_link() -> supervisor:start_link(?MODULE, []).
 
 init([]) ->
-	Oblivion = {oblivion,{oblivion, start_link, []}, permanent, infinity, worker, [oblivion]},
-	Procs = [Oblivion],
-	{ok, {{one_for_one, 5, 60}, Procs}}.
+    Oblivion = {oblivion, {oblivion, start_link, []},
+		permanent, infinity, worker, [oblivion]},
+    Procs = [Oblivion],
+    {ok, {{one_for_one, 5, 60}, Procs}}.

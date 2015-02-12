@@ -1,6 +1,6 @@
 %%
 %% Copyright 2014 Joaquim Rocha <jrocha@gmailbox.org>
-%% 
+%%
 %% Licensed under the Apache License, Version 2.0 (the "License");
 %% you may not use this file except in compliance with the License.
 %% You may obtain a copy of the License at
@@ -16,15 +16,8 @@
 
 -module(oblivion_rest).
 
--include("oblivion_error.hrl").
 -include("oblivion_rest.hrl").
-
--define(FIELD(Key, Value), {Key, Value}).
--define(FIELDS(Key, Value), [?FIELD(Key, Value)]).
-
--define(ERROR(ErrorCode), {error, ErrorCode}).
--define(SUCCESS(Fields), {ok, Fields}).
--define(SUCCESS(Key, Value), ?SUCCESS(?FIELDS(Key, Value))).
+-include_lib("gibreel/include/gibreel.hrl").
 
 -behaviour(kb_action_handler).
 
@@ -34,91 +27,99 @@
 -export([handle/3]).
 
 %% Data management
-% GET /{cache}/{key}
-handle(<<"GET">>, [Cache, Key], Req) ->
-	CacheName = cache_name(Cache),
-	Response = g_cache:get(CacheName, Key),
-	Reply = cache_to_reply(Response),
-	{json, Reply, Req};
 
-% PUT /{cache}/{key} + BODY({value})
-handle(<<"PUT">>, [Cache, Key], Req) ->
-	{JSon, Req1} = kb_action_helper:get_json(Req),
-	Reply = case jsondoc:get_value(?DATA_TAG, JSon) of
-		undefined -> reply(?ERROR(?ERROR_INVALID_REQUEST));
-		Value ->
-			CacheName = cache_name(Cache),
-			Response = g_cache:store(CacheName, Key, Value),
-			cache_to_reply(Response)	
-	end,
-	{json, Reply, Req1};
+%GET /caches/{cache}/keys/{key} - Return the value
+handle(<<"GET">>, [<<"caches">>, CacheName, <<"keys">>, Key], Req) ->
+	Cache = binary_to_atom(CacheName, utf8),
+	case g_cache:get(Cache, Key) of
+		no_cache -> cache_not_found(Req);
+		not_found -> key_not_found(Req);
+		error -> unexpected_error(Req);
+		{ok, Value, Version} -> success(Value, ?ETAG_HEADER_LIST(Version), Req)
+	end;
 
-% DELETE /{cache}/{key}
-handle(<<"DELETE">>, [Cache, Key], Req) ->
-	CacheName = cache_name(Cache),
-	Response = g_cache:remove(CacheName, Key),
-	Reply = cache_to_reply(Response),
-	{json, Reply, Req};
+%PUT /caches/{cache}/keys/{key}[?version={versionID}] - Add ou change value
+handle(<<"PUT">>, [<<"caches">>, CacheName, <<"keys">>, Key], Req) ->
+	Cache = binary_to_atom(CacheName, utf8),
+	{Value, Req1} = kb_action_helper:get_json(Req),
+	{Args, Req2} = kb_action_helper:get_args(Req1),
+	Options = get_options(Args),
+	case g_cache:store(Cache, Key, Value, Options) of
+		no_cache -> cache_not_found(Req2);
+		invalid_version -> invalid_version(Req2);
+		{ok, Version} -> success(?OK, ?ETAG_HEADER_LIST(Version), Req2)
+	end;
+
+%HEAD /caches/{cache}/keys/{key} - Get key version
+handle(<<"HEAD">>, [<<"caches">>, CacheName, <<"keys">>, Key], Req) ->
+	Cache = binary_to_atom(CacheName, utf8),
+	case g_cache:get(Cache, Key) of
+		no_cache -> cache_not_found(Req);
+		not_found -> key_not_found(Req);
+		error -> unexpected_error(Req);
+		{ok, _Value, Version} -> success_head(?ETAG_HEADER_LIST(Version), Req)
+	end;
+
+%DELETE /caches/{cache}/keys/{key}[?version={versionID}] - Delete key
+handle(<<"DELETE">>, [<<"caches">>, CacheName, <<"keys">>, Key], Req) ->
+	Cache = binary_to_atom(CacheName, utf8),
+	{Args, Req1} = kb_action_helper:get_args(Req),
+	Options = get_options(Args),
+	case g_cache:remove(Cache, Key, Options) of
+		no_cache -> cache_not_found(Req1);
+		invalid_version -> invalid_version(Req1);
+		ok -> success(?OK, ?BASIC_HEADER_LIST, Req1)
+	end;
+
+%GET /caches/{cache}/keys - get cache key list
+handle(<<"GET">>, [<<"caches">>, CacheName, <<"keys">>], Req) ->
+	Cache = binary_to_atom(CacheName, utf8),
+	case g_cache:get_all_keys(Cache) of
+		no_cache -> cache_not_found(Req);
+		KeyList ->
+			Reply = [{<<"keys">>, KeyList}],
+			success(Reply, ?BASIC_HEADER_LIST, Req)
+	end;
+
+%DELETE /caches/{cache}/keys - Delete all key from cache 
+handle(<<"DELETE">>, [<<"caches">>, CacheName, <<"keys">>], Req) ->
+	Cache = binary_to_atom(CacheName, utf8),
+	case g_cache:flush(Cache) of
+		no_cache -> cache_not_found(Req);
+		ok -> success(?OK, ?BASIC_HEADER_LIST, Req)
+	end;
 
 %% Cache management
-% GET / 
-handle(<<"GET">>, [], Req) ->
-	CacheList = gibreel:list_caches(),
-	Reply = reply(?SUCCESS(?CACHE_LIST_TAG, CacheList)),
-	{json, Reply, Req};
 
-% POST /{cache} + BODY({config})
-handle(<<"POST">>, [Cache], Req) ->
-	{JSon, Req1} = kb_action_helper:get_json(Req),
-	CacheName = cache_name(Cache),
-	Options = lists:foldl(fun({?CACHE_OPTION_MAX_AGE, MaxAge}, Acc) -> [{max_age, MaxAge}, 
-						{purge_interval, MaxAge}|Acc];
-				({?CACHE_OPTION_MAX_SIZE, MaxSize}, Acc) -> [{max_size, MaxSize}|Acc]
-			end, [], JSon),
-	Reply = case oblivion:create_cache(CacheName, Options) of
-		ok -> reply(ok);
-		{error, duplicated} -> reply(?ERROR(?ERROR_CACHE_ALREDY_EXISTS));
-		{error, _Reason} -> reply(?ERROR(?ERROR_INVALID_REQUEST))
-	end,
-	{json, Reply, Req1};
-
-% GET /{cache}
-handle(<<"GET">>, [_Cache], Req) ->
-	Reply = reply(?ERROR(?ERROR_OPERATION_NOT_IMPLEMENTED)),
-	{json, Reply, Req};
-
-% PUT /{cache} + BODY({config})
-handle(<<"PUT">>, [_Cache], Req) ->
-	Reply = reply(?ERROR(?ERROR_OPERATION_NOT_IMPLEMENTED)),
-	{json, Reply, Req};
-
-% DELETE /{cache}
-handle(<<"DELETE">>, [_Cache], Req) ->
-	Reply = reply(?ERROR(?ERROR_OPERATION_NOT_IMPLEMENTED)),
-	{json, Reply, Req};
+%GET /caches - Return cache list 
+%POST /caches - Create a new cache
+%GET /caches/{cache} - Return cache configuration
+%DELETE /caches/{cache} - Delete cache
 
 %% System management
 
-handle(_Method, _Path, Req) ->
-	Reply = reply(?ERROR(?ERROR_OPERATION_NOT_SUPPORTED)),
-	{json, Reply, Req}.
+%GET /nodes - Return cluster node list
+%PUT /nodes/{node} - Add node to cluster
+%DELETE /nodes/{node} - Delete node from cluster
+
+%% Fail
+handle(_Method, _Path, Req) -> ?rest_error(?OPERATION_NOT_SUPPORTED_ERROR, Req).
 
 %% ====================================================================
 %% Internal functions
 %% ====================================================================
 
-reply(ok) -> success_msg([]);
-reply(?SUCCESS(Fields)) -> success_msg(Fields);
-reply(?ERROR(Error)) -> error_msg(Error).
+get_options(Args) -> get_options(Args, []).
 
-error_msg(Error) ->	[{?SUCCESS_TAG, false},	{?ERROR_TAG, Error}].
+get_options([{?VERSION_TAG, Version}|T], Options) -> 
+	get_options(T, lists:keystore(?OPTION_VERSION, 1, {?OPTION_VERSION, Version}, Options));
+get_options([], Options) -> Options.
 
-success_msg(Fields) -> [{?SUCCESS_TAG, true}] ++ Fields.
+unexpected_error(Req) -> ?rest_error(?UNEXPECTED_ERROR, Req).
 
-cache_name(Cache) -> binary_to_atom(Cache, utf8).
+cache_not_found(Req) ->	?rest_error(?CACHE_NOT_EXISTS_ERROR, Req).
+key_not_found(Req) -> ?rest_error(?KEY_NOT_EXISTS_ERROR, Req).
+invalid_version(Req) -> ?rest_error(?INVALID_VERSION_ERROR, Req).
 
-cache_to_reply({ok, Value}) -> reply(?SUCCESS(?DATA_TAG, Value));
-cache_to_reply(not_found) -> reply(?ERROR(?ERROR_KEY_NOT_FOUND));
-cache_to_reply(ok) -> reply(ok);
-cache_to_reply(no_cache) -> reply(?ERROR(?ERROR_CACHE_NOT_FOUND));
-cache_to_reply(error) -> reply(?ERROR(?ERROR_SERVER_ERROR)).
+success(Reply, Headers, Req) -> {json, 200, Headers, Reply, Req}.
+success_head(Headers, Req) -> {raw, 200, Headers, <<"">>, Req}.
