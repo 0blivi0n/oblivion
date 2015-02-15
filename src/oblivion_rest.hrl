@@ -51,9 +51,9 @@
 %% HEADERS %%
 
 %% Header names
--define(HEADER_CONTENT_TYPE, <<"Content-type">>).
--define(HEADER_ACCEPT, <<"Accept">>).
--define(HEADER_CACHE_CONTROL, <<"Cache-control">>).
+-define(HEADER_CONTENT_TYPE, <<"content-type">>).
+-define(HEADER_ACCEPT, <<"accept">>).
+-define(HEADER_CACHE_CONTROL, <<"Cache-Control">>).
 -define(HEADER_ETAG, <<"ETag">>).
 -define(HEADER_LOCATION, <<"Location">>).
 -define(HEADER_RETRY_AFTER, <<"Retry-After">>).
@@ -81,6 +81,8 @@
 -define(CACHE_NOT_EXISTS_ERROR, ?ERROR(?STATUS_404, <<"Cache doesn't exists">>)).
 -define(KEY_NOT_EXISTS_ERROR, ?ERROR(?STATUS_404, <<"Key doesn't exists">>)).
 -define(INVALID_VERSION_ERROR, ?ERROR(?STATUS_409, <<"Specified version is not the latest for target key">>)).
+-define(INVALID_JSON_ERROR, ?ERROR(?STATUS_400, <<"The body is not a valid json">>)).
+-define(DUPLICATED_CACHE_ERROR, ?ERROR(?STATUS_412, <<"Cache already exists">>)).
 
 %% ====================================================================
 %% TAGS
@@ -99,7 +101,7 @@
 
 -define(BASIC_HEADER_LIST, [?BASIC_HEADER_INCLUDE]).
 -define(ERROR_HEADER_LIST, [?BASIC_HEADER_INCLUDE]).
--define(ETAG_HEADER_LIST(ETag), [?BASIC_HEADER_INCLUDE, {?HEADER_ETAG, ETag}]).
+-define(ETAG_HEADER_LIST(ETag), [?BASIC_HEADER_INCLUDE, {?HEADER_ETAG, integer_to_binary(ETag)}]).
 
 -define(ERROR_REPLY(Msg, Reason), [{?ERROR_TAG, Msg}, {?ERROR_REASON_TAG, Reason}]).
 

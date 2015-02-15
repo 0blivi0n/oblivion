@@ -24,7 +24,9 @@
 %% ====================================================================
 -export([code_change/3, handle_call/3, handle_cast/2, handle_info/2, init/1, terminate/2]).
 -export([start/0, start_link/0]).
--export([create_cache/2]).
+-export([create_cache/2, get_cache_config/1, delete_cache/1]).
+-export([get_node_list/0, add_node/1, delete_node/1]).
+-export([get_cluster_name/0]).
 
 start() ->
 	ok = application:start(crypto),
@@ -40,14 +42,38 @@ start() ->
 start_link() ->
 	gen_server:start_link(?SERVER, ?MODULE, [], []).
 
+get_cluster_name() ->
+	Node = atom_to_binary(node(), utf8),
+	[ClusterName|_] = binary:split(Node, <<"@">>),
+	ClusterName.
+
+get_node_list() ->
+	gen_server:call(?MODULE, {get_node_list}).
+
+add_node(Node) ->
+	gen_server:call(?MODULE, {add_node, Node}).
+	
+delete_node(Node) ->
+	gen_server:call(?MODULE, {delete_node, Node}).
+
 create_cache(CacheName, Options) ->
-	gen_server:call(?MODULE, {create_cache, CacheName, Options}).
+	ConvertedOptions = convert_to_gibreel(Options),
+	gen_server:call(?MODULE, {create_cache, CacheName, ConvertedOptions}).
+
+get_cache_config(CacheName) ->
+	case gibreel:cache_config(CacheName) of
+		no_cache -> no_cache;
+		ConvertedOptions -> convert_from_gibreel(ConvertedOptions)
+	end.
+	
+delete_cache(CacheName) ->
+	gen_server:call(?MODULE, {delete_cache, CacheName}).
 
 %% ====================================================================
 %% Behavioural functions
 %% ====================================================================
 
--record(state, {}).
+-record(state, {nodes=[]}).
 
 %% init
 init([]) ->
@@ -56,9 +82,9 @@ init([]) ->
 	{ok, #state{}}.
 
 %% handle_call
-handle_call({create_cache, CacheName, Options}, _From, State) ->
-	ServerOptions = Options ++ [{cluster_nodes, all}, {sync_mode, lazy}],
-	Reply = gibreel:create_cache(CacheName, ServerOptions),
+handle_call({create_cache, CacheName, Options}, _From, State=#state{nodes=Nodes}) ->
+	ServerNodes = lists:keystore(cluster_nodes, 1, {cluster_nodes, Nodes}, Options),
+	Reply = gibreel:create_cache(CacheName, ServerNodes),
 	{reply, Reply, State}.
 
 %% handle_cast
@@ -77,3 +103,6 @@ code_change(_OldVsn, State, _Extra) -> {ok, State}.
 %% Internal functions
 %% ====================================================================
 
+convert_to_gibreel(Options) -> Options.
+
+convert_from_gibreel(Options) -> Options.

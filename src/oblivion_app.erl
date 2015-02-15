@@ -34,7 +34,7 @@ start_webserver() ->
 	{ok, ServerID} = kill_bill:config_server(ServerConfig),
 	HTTPConfig = {webapp_config, oblivion_http,
 			[{context, "/"},
-				{action, [{oblivion_filter, [{"/", oblivion_rest}]}]},
+				{action, [{oblivion_filter, [{"api", oblivion_rest}]}]},
 				{session_timeout, none}]},
 	ok = kill_bill:deploy(ServerID, HTTPConfig),
 	ok = kill_bill:start_server(ServerID),

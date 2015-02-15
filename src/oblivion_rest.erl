@@ -35,20 +35,23 @@ handle(<<"GET">>, [<<"caches">>, CacheName, <<"keys">>, Key], Req) ->
 		no_cache -> cache_not_found(Req);
 		not_found -> key_not_found(Req);
 		error -> unexpected_error(Req);
-		{ok, Value, Version} -> success(Value, ?ETAG_HEADER_LIST(Version), Req)
+		{ok, Value, Version} -> success(200, Value, ?ETAG_HEADER_LIST(Version), Req)
 	end;
 
 %PUT /caches/{cache}/keys/{key}[?version={versionID}] - Add ou change value
 handle(<<"PUT">>, [<<"caches">>, CacheName, <<"keys">>, Key], Req) ->
-	Cache = binary_to_atom(CacheName, utf8),
-	{Value, Req1} = kb_action_helper:get_json(Req),
-	{Args, Req2} = kb_action_helper:get_args(Req1),
-	Options = get_options(Args),
-	case g_cache:store(Cache, Key, Value, Options) of
-		no_cache -> cache_not_found(Req2);
-		invalid_version -> invalid_version(Req2);
-		{ok, Version} -> success(?OK, ?ETAG_HEADER_LIST(Version), Req2)
-	end;
+	try kb_action_helper:get_json(Req) of
+		{Value, Req1} ->
+			Cache = binary_to_atom(CacheName, utf8),
+			{Args, Req2} = kb_action_helper:get_args(Req1),
+			Options = get_options(Args),
+			case g_cache:store(Cache, Key, Value, Options) of
+				no_cache -> cache_not_found(Req2);
+				invalid_version -> invalid_version(Req2);
+				{ok, Version} -> success(201, ?OK, ?ETAG_HEADER_LIST(Version), Req2)
+			end
+	catch _:_ -> invalid_json(Req)
+	end; 
 
 %HEAD /caches/{cache}/keys/{key} - Get key version
 handle(<<"HEAD">>, [<<"caches">>, CacheName, <<"keys">>, Key], Req) ->
@@ -57,7 +60,7 @@ handle(<<"HEAD">>, [<<"caches">>, CacheName, <<"keys">>, Key], Req) ->
 		no_cache -> cache_not_found(Req);
 		not_found -> key_not_found(Req);
 		error -> unexpected_error(Req);
-		{ok, _Value, Version} -> success_head(?ETAG_HEADER_LIST(Version), Req)
+		{ok, _Value, Version} -> success_head(200, ?ETAG_HEADER_LIST(Version), Req)
 	end;
 
 %DELETE /caches/{cache}/keys/{key}[?version={versionID}] - Delete key
@@ -68,7 +71,7 @@ handle(<<"DELETE">>, [<<"caches">>, CacheName, <<"keys">>, Key], Req) ->
 	case g_cache:remove(Cache, Key, Options) of
 		no_cache -> cache_not_found(Req1);
 		invalid_version -> invalid_version(Req1);
-		ok -> success(?OK, ?BASIC_HEADER_LIST, Req1)
+		ok -> success(200, ?OK, ?BASIC_HEADER_LIST, Req1)
 	end;
 
 %GET /caches/{cache}/keys - get cache key list
@@ -78,7 +81,7 @@ handle(<<"GET">>, [<<"caches">>, CacheName, <<"keys">>], Req) ->
 		no_cache -> cache_not_found(Req);
 		KeyList ->
 			Reply = [{<<"keys">>, KeyList}],
-			success(Reply, ?BASIC_HEADER_LIST, Req)
+			success(200, Reply, ?BASIC_HEADER_LIST, Req)
 	end;
 
 %DELETE /caches/{cache}/keys - Delete all key from cache 
@@ -86,21 +89,67 @@ handle(<<"DELETE">>, [<<"caches">>, CacheName, <<"keys">>], Req) ->
 	Cache = binary_to_atom(CacheName, utf8),
 	case g_cache:flush(Cache) of
 		no_cache -> cache_not_found(Req);
-		ok -> success(?OK, ?BASIC_HEADER_LIST, Req)
+		ok -> success(202, ?OK, ?BASIC_HEADER_LIST, Req)
 	end;
 
 %% Cache management
 
 %GET /caches - Return cache list 
-%POST /caches - Create a new cache
+handle(<<"GET">>, [<<"caches">>], Req) ->
+	CacheList = gibreel:list_caches(),
+	Reply = [{<<"caches">>, CacheList}],
+	success(200, Reply, ?BASIC_HEADER_LIST, Req);
+
+%PUT /caches/{cache} - Create a new cache
+handle(<<"PUT">>, [<<"caches">>, CacheName], Req) ->
+	try kb_action_helper:get_json(Req) of
+		{Config, Req1} ->
+			Cache = binary_to_atom(CacheName, utf8),
+			case oblivion:create_cache(Cache, Config) of
+				{error, duplicated} -> duplicated_cache(Req1);
+				{error, Reason} -> validation_error(Reason, Req1);
+				ok -> success(201, ?OK, ?BASIC_HEADER_LIST, Req1)
+			end
+	catch _:_ -> invalid_json(Req)
+	end; 
+
 %GET /caches/{cache} - Return cache configuration
+handle(<<"GET">>, [<<"caches">>, CacheName], Req) ->
+	Cache = binary_to_atom(CacheName, utf8),
+	case oblivion:get_cache_config(Cache) of
+		no_cache -> cache_not_found(Req);
+		Reply -> success(200, Reply, ?BASIC_HEADER_LIST, Req)
+	end;
+
 %DELETE /caches/{cache} - Delete cache
+handle(<<"DELETE">>, [<<"caches">>, CacheName], Req) ->
+	Cache = binary_to_atom(CacheName, utf8),
+	case oblivion:delete_cache(Cache) of
+		no_cache -> cache_not_found(Req);
+		ok -> success(202, ?OK, ?BASIC_HEADER_LIST, Req)
+	end;
 
 %% System management
 
 %GET /nodes - Return cluster node list
+handle(<<"GET">>, [<<"nodes">>], Req) ->
+	NodeList = oblivion:get_node_list(),
+	Reply = [{<<"nodes">>, NodeList}],
+	success(200, Reply, ?BASIC_HEADER_LIST, Req);
+
 %PUT /nodes/{node} - Add node to cluster
+handle(<<"PUT">>, [<<"nodes">>, Node], Req) ->
+	NewNode = binary_to_atom(Node, utf8),
+	case oblivion:add_node(NewNode) of
+		{error, Reason} -> validation_error(Reason, Req);
+		ok -> success(202, ?OK, ?BASIC_HEADER_LIST, Req)
+	end;
+
 %DELETE /nodes/{node} - Delete node from cluster
+handle(<<"DELETE">>, [<<"nodes">>, Node], Req) ->
+	NewNode = binary_to_atom(Node, utf8),
+	oblivion:delete_node(NewNode),
+	success(202, ?OK, ?BASIC_HEADER_LIST, Req);
 
 %% Fail
 handle(_Method, _Path, Req) -> ?rest_error(?OPERATION_NOT_SUPPORTED_ERROR, Req).
@@ -109,17 +158,23 @@ handle(_Method, _Path, Req) -> ?rest_error(?OPERATION_NOT_SUPPORTED_ERROR, Req).
 %% Internal functions
 %% ====================================================================
 
-get_options(Args) -> get_options(Args, []).
-
-get_options([{?VERSION_TAG, Version}|T], Options) -> 
-	get_options(T, lists:keystore(?OPTION_VERSION, 1, {?OPTION_VERSION, Version}, Options));
-get_options([], Options) -> Options.
+get_options([]) -> []; 
+get_options(Args) -> 
+	lists:filtermap(fun({?VERSION_TAG, Version}) -> {true, {?OPTION_VERSION, Version}};
+			(_) -> false
+		end, Args).
 
 unexpected_error(Req) -> ?rest_error(?UNEXPECTED_ERROR, Req).
 
 cache_not_found(Req) ->	?rest_error(?CACHE_NOT_EXISTS_ERROR, Req).
 key_not_found(Req) -> ?rest_error(?KEY_NOT_EXISTS_ERROR, Req).
 invalid_version(Req) -> ?rest_error(?INVALID_VERSION_ERROR, Req).
+invalid_json(Req) -> ?rest_error(?INVALID_JSON_ERROR, Req).
+duplicated_cache(Req) -> ?rest_error(?DUPLICATED_CACHE_ERROR, Req).
 
-success(Reply, Headers, Req) -> {json, 200, Headers, Reply, Req}.
-success_head(Headers, Req) -> {raw, 200, Headers, <<"">>, Req}.
+validation_error(Reason, Req) ->
+	Error = ?ERROR(?STATUS_406, Reason),
+	?rest_error(Error, Req).
+
+success(Status, Reply, Headers, Req) -> {json, Status, Headers, Reply, Req}.
+success_head(Status, Headers, Req) -> {raw, Status, Headers, <<"">>, Req}.

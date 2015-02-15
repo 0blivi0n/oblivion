@@ -27,7 +27,6 @@
 	]},
 	{mod, {oblivion_app, []}},
 	{env, [
-		{oblivion_http_port, 8080},
-		{oblivion_cluster_name, oblivion}
+		{oblivion_http_port, 8080}
 	]}
 ]}.
