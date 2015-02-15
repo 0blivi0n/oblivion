@@ -172,6 +172,8 @@ invalid_version(Req) -> ?rest_error(?INVALID_VERSION_ERROR, Req).
 invalid_json(Req) -> ?rest_error(?INVALID_JSON_ERROR, Req).
 duplicated_cache(Req) -> ?rest_error(?DUPLICATED_CACHE_ERROR, Req).
 
+validation_error(Reason, Req) when is_list(Reason) -> 
+	validation_error(list_to_binary(Reason), Req);
 validation_error(Reason, Req) ->
 	Error = ?ERROR(?STATUS_406, Reason),
 	?rest_error(Error, Req).

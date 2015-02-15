@@ -15,6 +15,8 @@
 
 -module(oblivion).
 
+-include_lib("gibreel/include/gibreel.hrl").
+
 -behaviour(gen_server).
 
 -define(SERVER, {local, ?MODULE}).
@@ -159,19 +161,21 @@ node_name(Server) ->
 
 convert_to_gibreel(Options) -> convert_to_gibreel(Options, []).
 
-convert_to_gibreel([{<<"max_age">>, Value}|T], Output) -> 
+convert_to_gibreel([{<<"max-age">>, Value}|T], Output) -> 
 	convert_to_gibreel(T, [{max_age, Value}, {purge_interval, 60}|Output]);
-convert_to_gibreel([{<<"max_size">>, Value}|T], Output) -> convert_to_gibreel(T, [{max_size, Value}|Output]);
-convert_to_gibreel([{<<"synchronize_on_startup">>, true}|T], Output) -> convert_to_gibreel(T, [{sync_mode, full}|Output]);
-convert_to_gibreel([{<<"synchronize_on_startup">>, false}|T], Output) -> convert_to_gibreel(T, [{sync_mode, lazy}|Output]);
+convert_to_gibreel([{<<"max-size">>, Value}|T], Output) -> convert_to_gibreel(T, [{max_size, Value}|Output]);
+convert_to_gibreel([{<<"synchronize-on-startup">>, true}|T], Output) -> convert_to_gibreel(T, [{sync_mode, ?FULL_SYNC_MODE}|Output]);
+convert_to_gibreel([{<<"synchronize-on-startup">>, false}|T], Output) -> convert_to_gibreel(T, [{sync_mode, ?LAZY_SYNC_MODE}|Output]);
 convert_to_gibreel([_|T], Output) -> convert_to_gibreel(T, Output);
 convert_to_gibreel([], Output) -> Output.
 
 convert_from_gibreel(Options) -> 
-	lists:filtermap(fun({max_age, Value}) -> {true, {<<"max_age">>, Value}};
-			({max_size, Value}) -> {true, {<<"max_size">>, Value}};
-			({sync_mode, lazy}) -> {true, {<<"synchronize_on_startup">>, false}};
-			({sync_mode, full}) -> {true, {<<"synchronize_on_startup">>, true}};
+	lists:filtermap(fun({max_age, ?NO_MAX_AGE}) -> false;
+			({max_age, Value}) -> {true, {<<"max-age">>, Value}};
+			({max_size, ?NO_MAX_SIZE}) -> false;
+			({max_size, Value}) -> {true, {<<"max-size">>, Value}};
+			({sync_mode, ?LAZY_SYNC_MODE}) -> {true, {<<"synchronize-on-startup">>, false}};
+			({sync_mode, ?FULL_SYNC_MODE}) -> {true, {<<"synchronize-on-startup">>, true}};
 			(_) -> false
 		end, Options).
 
@@ -180,9 +184,12 @@ update_caches(Nodes) ->
 				gibreel:change_cluster_nodes(C, Nodes) 
 		end, gibreel:list_caches()).
 
+create_cache(CacheName, Options, []) ->
+	create_cache(CacheName, Options, local);
 create_cache(CacheName, Options, Nodes) ->
-	Config = lists:keystore(cluster_nodes, 1, {cluster_nodes, Nodes}, Options),
+	Config = lists:keystore(cluster_nodes, 1, Options, {cluster_nodes, Nodes}),
 	gibreel:create_cache(CacheName, Config).
 
+notify(_Msg, []) -> ok;
 notify(Msg, Nodes) ->
 	spawn(fun() -> columbo:send_to_nodes(?MODULE, Nodes, Msg) end).
