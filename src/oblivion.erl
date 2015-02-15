@@ -50,10 +50,15 @@ get_cluster_name() ->
 get_node_list() ->
 	gen_server:call(?MODULE, {get_node_list}).
 
-add_node(Node) ->
-	gen_server:call(?MODULE, {add_node, Node}).
-	
-delete_node(Node) ->
+add_node(Server) ->
+	Node = node_name(Server),
+	case net_adm:ping(Node) of
+		pong -> gen_server:call(?MODULE, {add_node, Node});
+		pang -> {error, <<"Node not responding">>}
+	end.
+
+delete_node(Server) ->
+	Node = node_name(Server),
 	gen_server:call(?MODULE, {delete_node, Node}).
 
 create_cache(CacheName, Options) ->
@@ -65,7 +70,7 @@ get_cache_config(CacheName) ->
 		no_cache -> no_cache;
 		ConvertedOptions -> convert_from_gibreel(ConvertedOptions)
 	end.
-	
+
 delete_cache(CacheName) ->
 	gen_server:call(?MODULE, {delete_cache, CacheName}).
 
@@ -83,15 +88,57 @@ init([]) ->
 
 %% handle_call
 handle_call({create_cache, CacheName, Options}, _From, State=#state{nodes=Nodes}) ->
-	ServerNodes = lists:keystore(cluster_nodes, 1, {cluster_nodes, Nodes}, Options),
-	Reply = gibreel:create_cache(CacheName, ServerNodes),
-	{reply, Reply, State}.
+	Reply = create_cache(CacheName, Options, Nodes),
+	notify({create_cache, CacheName, Options}, Nodes),
+	{reply, Reply, State};
+
+handle_call({delete_cache, CacheName}, _From, State=#state{nodes=Nodes}) ->
+	gibreel:delete_cache(CacheName),
+	notify({delete_cache, CacheName}, Nodes),
+	{reply, ok, State};
+
+handle_call({get_node_list}, _From, State=#state{nodes=Nodes}) ->
+	{reply, Nodes, State};
+
+handle_call({add_node, Node}, _From, State=#state{nodes=Nodes}) ->
+	NewNodes = case lists:member(Node, Nodes) of
+		true -> Nodes;
+		false -> 
+			Nodes1 = [Node|Nodes],
+			columbo:add_node(Node),
+			columbo:refresh(),
+			update_caches(Nodes1),
+			notify({nodes, Nodes1}, Nodes1),
+			Nodes1
+	end, 
+	{reply, ok, State#state{nodes=NewNodes}};
+
+handle_call({delete_node, Node}, _From, State=#state{nodes=Nodes}) ->
+	NewNodes = case lists:member(Node, Nodes) of
+		true ->
+			Nodes1 = lists:delete(Node, Nodes),
+			update_caches(Nodes1),
+			notify({nodes, Nodes1}, Nodes),
+			Nodes1;
+		false -> Nodes
+	end, 
+	{reply, ok, State#state{nodes=NewNodes}}.
 
 %% handle_cast
 handle_cast(_Msg, State) -> {noreply, State}.
 
 %% handle_info
-handle_info(_Info, State) -> {noreply, State}.
+handle_info({create_cache, CacheName, Options}, State=#state{nodes=Nodes}) -> 
+	create_cache(CacheName, Options, Nodes),
+	{noreply, State};
+
+handle_info({delete_cache, CacheName}, State) -> 
+	gibreel:delete_cache(CacheName),
+	{noreply, State};
+
+handle_info({nodes, NewNodes}, State) -> 
+	update_caches(NewNodes),
+	{noreply, State#state{nodes=NewNodes}}.
 
 %% terminate
 terminate(_Reason, _State) -> ok.
@@ -103,6 +150,39 @@ code_change(_OldVsn, State, _Extra) -> {ok, State}.
 %% Internal functions
 %% ====================================================================
 
-convert_to_gibreel(Options) -> Options.
+node_name(Server) when is_atom(Server) ->
+	node_name(atom_to_binary(Server, utf8));
+node_name(Server) ->
+	ClusterName = get_cluster_name(),
+	NodeName = <<ClusterName, $@, Server>>,
+	binary_to_atom(NodeName, utf8).
 
-convert_from_gibreel(Options) -> Options.
+convert_to_gibreel(Options) -> convert_to_gibreel(Options, []).
+
+convert_to_gibreel([{<<"max_age">>, Value}|T], Output) -> 
+	convert_to_gibreel(T, [{max_age, Value}, {purge_interval, 60}|Output]);
+convert_to_gibreel([{<<"max_size">>, Value}|T], Output) -> convert_to_gibreel(T, [{max_size, Value}|Output]);
+convert_to_gibreel([{<<"synchronize_on_startup">>, true}|T], Output) -> convert_to_gibreel(T, [{sync_mode, full}|Output]);
+convert_to_gibreel([{<<"synchronize_on_startup">>, false}|T], Output) -> convert_to_gibreel(T, [{sync_mode, lazy}|Output]);
+convert_to_gibreel([_|T], Output) -> convert_to_gibreel(T, Output);
+convert_to_gibreel([], Output) -> Output.
+
+convert_from_gibreel(Options) -> 
+	lists:filtermap(fun({max_age, Value}) -> {true, {<<"max_age">>, Value}};
+			({max_size, Value}) -> {true, {<<"max_size">>, Value}};
+			({sync_mode, lazy}) -> {true, {<<"synchronize_on_startup">>, false}};
+			({sync_mode, full}) -> {true, {<<"synchronize_on_startup">>, true}};
+			(_) -> false
+		end, Options).
+
+update_caches(Nodes) ->
+	lists:foreach(fun(C) -> 
+				gibreel:change_cluster_nodes(C, Nodes) 
+		end, gibreel:list_caches()).
+
+create_cache(CacheName, Options, Nodes) ->
+	Config = lists:keystore(cluster_nodes, 1, {cluster_nodes, Nodes}, Options),
+	gibreel:create_cache(CacheName, Config).
+
+notify(Msg, Nodes) ->
+	spawn(fun() -> columbo:send_to_nodes(?MODULE, Nodes, Msg) end).
