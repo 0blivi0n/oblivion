@@ -71,14 +71,10 @@ delete_node(Server) ->
 	gen_server:call(?MODULE, {delete_node, Node}).
 
 create_cache(CacheName, Options) ->
-	ConvertedOptions = convert_to_gibreel(Options),
-	gen_server:call(?MODULE, {create_cache, CacheName, ConvertedOptions}).
+	gen_server:call(?MODULE, {create_cache, CacheName, Options}).
 
 get_cache_config(CacheName) ->
-	case gibreel:cache_config(CacheName) of
-		no_cache -> no_cache;
-		ConvertedOptions -> convert_from_gibreel(ConvertedOptions)
-	end.
+	gibreel:cache_config(CacheName).
 
 delete_cache(CacheName) ->
 	gen_server:call(?MODULE, {delete_cache, CacheName}).
@@ -167,26 +163,6 @@ node_name(Server) ->
 	NodeName = <<ClusterName, $@, Server>>,
 	binary_to_atom(NodeName, utf8).
 
-convert_to_gibreel(Options) -> convert_to_gibreel(Options, []).
-
-convert_to_gibreel([{<<"max-age">>, Value}|T], Output) -> 
-	convert_to_gibreel(T, [{max_age, Value}, {purge_interval, 60}|Output]);
-convert_to_gibreel([{<<"max-size">>, Value}|T], Output) -> convert_to_gibreel(T, [{max_size, Value}|Output]);
-convert_to_gibreel([{<<"synchronize-on-startup">>, true}|T], Output) -> convert_to_gibreel(T, [{sync_mode, ?FULL_SYNC_MODE}|Output]);
-convert_to_gibreel([{<<"synchronize-on-startup">>, false}|T], Output) -> convert_to_gibreel(T, [{sync_mode, ?LAZY_SYNC_MODE}|Output]);
-convert_to_gibreel([_|T], Output) -> convert_to_gibreel(T, Output);
-convert_to_gibreel([], Output) -> Output.
-
-convert_from_gibreel(Options) -> 
-	lists:filtermap(fun({max_age, ?NO_MAX_AGE}) -> false;
-			({max_age, Value}) -> {true, {<<"max-age">>, Value}};
-			({max_size, ?NO_MAX_SIZE}) -> false;
-			({max_size, Value}) -> {true, {<<"max-size">>, Value}};
-			({sync_mode, ?LAZY_SYNC_MODE}) -> {true, {<<"synchronize-on-startup">>, false}};
-			({sync_mode, ?FULL_SYNC_MODE}) -> {true, {<<"synchronize-on-startup">>, true}};
-			(_) -> false
-		end, Options).
-
 update_caches(Nodes) ->
 	lists:foreach(fun(C) -> 
 				gibreel:change_cluster_nodes(C, Nodes) 
@@ -196,7 +172,12 @@ create_cache(CacheName, Options, []) ->
 	create_cache(CacheName, Options, local);
 create_cache(CacheName, Options, Nodes) ->
 	Config = lists:keystore(cluster_nodes, 1, Options, {cluster_nodes, Nodes}),
-	gibreel:create_cache(CacheName, Config).
+	Config1 = case lists:keyfind(max_age, 1, Config) of
+		false -> Config;
+		{_, ?NO_MAX_AGE} -> Config;
+		_ -> [{purge_interval, 60}|Config]
+	end,
+	gibreel:create_cache(CacheName, Config1).
 
 notify(_Msg, []) -> ok;
 notify(Msg, Nodes) ->

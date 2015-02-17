@@ -164,6 +164,26 @@ get_options(Args) ->
 			(_) -> false
 		end, Args).
 
+
+convert_to_gibreel(Options) -> convert_to_gibreel(Options, []).
+
+convert_to_gibreel([{<<"max-age">>, Value}|T], Output) -> convert_to_gibreel(T, [{max_age, Value}|Output]);
+convert_to_gibreel([{<<"max-size">>, Value}|T], Output) -> convert_to_gibreel(T, [{max_size, Value}|Output]);
+convert_to_gibreel([{<<"synchronize-on-startup">>, true}|T], Output) -> convert_to_gibreel(T, [{sync_mode, ?FULL_SYNC_MODE}|Output]);
+convert_to_gibreel([{<<"synchronize-on-startup">>, false}|T], Output) -> convert_to_gibreel(T, [{sync_mode, ?LAZY_SYNC_MODE}|Output]);
+convert_to_gibreel([_|T], Output) -> convert_to_gibreel(T, Output);
+convert_to_gibreel([], Output) -> Output.
+
+convert_from_gibreel(Options) -> 
+	lists:filtermap(fun({max_age, ?NO_MAX_AGE}) -> false;
+			({max_age, Value}) -> {true, {<<"max-age">>, Value}};
+			({max_size, ?NO_MAX_SIZE}) -> false;
+			({max_size, Value}) -> {true, {<<"max-size">>, Value}};
+			({sync_mode, ?LAZY_SYNC_MODE}) -> {true, {<<"synchronize-on-startup">>, false}};
+			({sync_mode, ?FULL_SYNC_MODE}) -> {true, {<<"synchronize-on-startup">>, true}};
+			(_) -> false
+		end, Options).
+
 unexpected_error(Req) -> ?rest_error(?UNEXPECTED_ERROR, Req).
 
 cache_not_found(Req) ->	?rest_error(?CACHE_NOT_EXISTS_ERROR, Req).
