@@ -27,7 +27,7 @@
 -export([code_change/3, handle_call/3, handle_cast/2, handle_info/2, init/1, terminate/2]).
 -export([start/0, start_link/0]).
 -export([create_cache/2, get_cache_config/1, delete_cache/1]).
--export([get_node_list/0, add_node/1, delete_node/1]).
+-export([get_node_list/0, add_node/1, delete_node/1, get_online_node_list/0]).
 -export([get_cluster_name/0]).
 
 start() ->
@@ -51,6 +51,13 @@ get_cluster_name() ->
 
 get_node_list() ->
 	gen_server:call(?MODULE, {get_node_list}).
+
+get_online_node_list() ->
+	AllNodes = get_node_list(),
+	Online = columbo:online_nodes(),
+	lists:filter(fun(Node) -> 
+				lists:member(Node, Online) 
+		end, AllNodes).
 
 add_node(Server) ->
 	Node = node_name(Server),
