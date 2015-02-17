@@ -110,7 +110,7 @@ handle_call({add_node, Node}, _From, State=#state{nodes=Nodes}) ->
 			columbo:add_node(Node),
 			columbo:refresh(),
 			update_caches(Nodes1),
-			notify({nodes, Nodes1}, Nodes1),
+			notify({nodes, [node()|Nodes1]}, Nodes1),
 			Nodes1
 	end, 
 	{reply, ok, State#state{nodes=NewNodes}};
@@ -120,7 +120,7 @@ handle_call({delete_node, Node}, _From, State=#state{nodes=Nodes}) ->
 		true ->
 			Nodes1 = lists:delete(Node, Nodes),
 			update_caches(Nodes1),
-			notify({nodes, Nodes1}, Nodes),
+			notify({nodes, [node()|Nodes1]}, Nodes),
 			Nodes1;
 		false -> Nodes
 	end, 
@@ -139,8 +139,9 @@ handle_info({delete_cache, CacheName}, State) ->
 	{noreply, State};
 
 handle_info({nodes, NewNodes}, State) -> 
-	update_caches(NewNodes),
-	{noreply, State#state{nodes=NewNodes}}.
+	Nodes = lists:delete(node(), NewNodes),
+	update_caches(Nodes),
+	{noreply, State#state{nodes=Nodes}}.
 
 %% terminate
 terminate(_Reason, _State) -> ok.
