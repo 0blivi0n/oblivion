@@ -19,7 +19,9 @@
 	{vsn, "0.0.1"},
 	{modules, [
 	]},
-	{registered, [oblivion]},
+	{registered, [
+		oblivion
+	]},
 	{applications, [
 		kernel,
 		stdlib,

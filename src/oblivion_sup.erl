@@ -25,7 +25,6 @@
 start_link() -> supervisor:start_link(?MODULE, []).
 
 init([]) ->
-    Oblivion = {oblivion, {oblivion, start_link, []},
-		permanent, infinity, worker, [oblivion]},
-    Procs = [Oblivion],
-    {ok, {{one_for_one, 5, 60}, Procs}}.
+	Oblivion = {oblivion, {oblivion, start_link, []}, permanent, infinity, worker, [oblivion]},
+	Procs = [Oblivion],
+	{ok, {{one_for_one, 5, 60}, Procs}}.

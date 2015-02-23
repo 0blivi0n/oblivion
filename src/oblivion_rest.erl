@@ -105,7 +105,8 @@ handle(<<"PUT">>, [<<"caches">>, CacheName], Req) ->
 	try kb_action_helper:get_json(Req) of
 		{Config, Req1} ->
 			Cache = binary_to_atom(CacheName, utf8),
-			case oblivion:create_cache(Cache, Config) of
+			Options = convert_to_gibreel(Config),
+			case oblivion:create_cache(Cache, Options) of
 				{error, duplicated} -> duplicated_cache(Req1);
 				{error, Reason} -> validation_error(Reason, Req1);
 				ok -> success(201, ?OK, ?BASIC_HEADER_LIST, Req1)
@@ -118,7 +119,7 @@ handle(<<"GET">>, [<<"caches">>, CacheName], Req) ->
 	Cache = binary_to_atom(CacheName, utf8),
 	case oblivion:get_cache_config(Cache) of
 		no_cache -> cache_not_found(Req);
-		Reply -> success(200, Reply, ?BASIC_HEADER_LIST, Req)
+		Options -> success(200, convert_from_gibreel(Options), ?BASIC_HEADER_LIST, Req)
 	end;
 
 %DELETE /caches/{cache} - Delete cache
