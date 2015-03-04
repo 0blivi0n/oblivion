@@ -102,7 +102,7 @@ init([]) ->
 %% handle_call
 handle_call({create_cache, CacheName, Options}, _From, State=#state{config=Config}) ->
 	Nodes = oblivion_conf:nodes(Config),
-	case create_cache(CacheName, Options, Nodes) of
+	case cache_setup(CacheName, Options) of
 		ok -> 
 			case oblivion_conf:add_cache(CacheName, Options, Config) of
 				{ok, Config1} ->
@@ -167,7 +167,7 @@ handle_cast(_Msg, State) -> {noreply, State}.
 %% handle_info
 handle_info({create_cache, CacheName, Options}, State=#state{config=Config}) -> 
 	Nodes = oblivion_conf:nodes(Config),
-	case create_cache(CacheName, Options, Nodes) of
+	case cache_setup(CacheName, Options) of
 		ok -> 
 			case oblivion_conf:add_cache(CacheName, Options, Config) of
 				{ok, Config1} -> {noreply, State#state{config=Config1}};
@@ -214,7 +214,7 @@ handle_info({startup, RemoteConfig}, State=#state{config=OldConfig}) ->
 			Nodes = oblivion_conf:nodes(RemoteConfig, import),
 			Caches = oblivion_conf:caches(RemoteConfig),
 			lists:foreach(fun({CacheName, Options}) ->
-						create_cache(CacheName, Options, Nodes)
+						cache_setup(CacheName, Options)
 				end, Caches),
 			case oblivion_conf:write(Nodes, Caches) of
 				{ok, Config} -> {noreply, State=#state{config=Config}};
@@ -263,10 +263,8 @@ update_caches(Nodes) ->
 				gibreel:change_cluster_nodes(Cache, Nodes) 
 		end, gibreel:list_caches()).
 
-create_cache(CacheName, Options, []) ->
-	create_cache(CacheName, Options, local);
-create_cache(CacheName, Options, Nodes) ->
-	Config = lists:keystore(cluster_nodes, 1, Options, {cluster_nodes, Nodes}),
+cache_setup(CacheName, Options) ->
+	Config = lists:keystore(cluster_nodes, 1, Options, {cluster_nodes, ?CLUSTER_NODES_ALL}),
 	Config1 = case lists:keyfind(max_age, 1, Config) of
 		false -> Config;
 		{_, ?NO_MAX_AGE} -> Config;
@@ -288,7 +286,7 @@ load_persistence() ->
 			Nodes = oblivion_conf:nodes(RemoteConfig, import),
 			Caches = oblivion_conf:caches(RemoteConfig),
 			lists:foreach(fun({CacheName, Options}) ->
-						create_cache(CacheName, Options, Nodes)
+						cache_setup(CacheName, Options)
 				end, Caches),
 			oblivion_conf:write(Nodes, Caches);
 		{error, Reason} -> {error, Reason}
