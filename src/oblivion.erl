@@ -30,7 +30,6 @@
 -export([start/0, start_link/0]).
 -export([create_cache/2, get_cache_config/1, delete_cache/1]).
 -export([get_node_list/0, add_node/1, delete_node/1, get_online_node_list/0]).
--export([get_cluster_name/0]).
 
 start() ->
 	ok = application:start(crypto),
@@ -46,11 +45,6 @@ start() ->
 start_link() ->
 	gen_server:start_link(?SERVER, ?MODULE, [], []).
 
-get_cluster_name() ->
-	Node = atom_to_binary(node(), utf8),
-	[ClusterName|_] = binary:split(Node, <<"@">>),
-	ClusterName.
-
 get_node_list() ->
 	gen_server:call(?MODULE, {get_node_list}).
 
@@ -61,15 +55,13 @@ get_online_node_list() ->
 				lists:member(Node, Online) 
 		end, AllNodes).
 
-add_node(Server) ->
-	Node = node_name(Server),
+add_node(Node) ->
 	case net_adm:ping(Node) of
 		pong -> gen_server:call(?MODULE, {add_node, Node});
 		pang -> {error, <<"Node not responding">>}
 	end.
 
-delete_node(Server) ->
-	Node = node_name(Server),
+delete_node(Node) ->
 	gen_server:call(?MODULE, {delete_node, Node}).
 
 create_cache(CacheName, Options) ->
@@ -201,11 +193,8 @@ handle_info({nodes, NewNodes}, State=#state{config=Config}) ->
 			{noreply, State}
 	end;
 
-handle_info({config_request, Cluster, From}, State=#state{config=Config}) -> 
-	case get_cluster_name() of
-		Cluster -> From ! {config_response, Config};
-		_ -> ok
-	end,
+handle_info({config_request, From}, State=#state{config=Config}) -> 
+	From ! {config_response, Config},
 	{noreply, State};
 
 handle_info({startup, RemoteConfig}, State=#state{config=OldConfig}) -> 
@@ -251,13 +240,6 @@ code_change(_OldVsn, State, _Extra) -> {ok, State}.
 %% Internal functions
 %% ====================================================================
 
-node_name(Server) when is_atom(Server) ->
-	node_name(atom_to_binary(Server, utf8));
-node_name(Server) ->
-	ClusterName = get_cluster_name(),
-	NodeName = <<ClusterName, $@, Server>>,
-	binary_to_atom(NodeName, utf8).
-
 update_caches(Nodes) ->
 	lists:foreach(fun(Cache) -> 
 				gibreel:change_cluster_nodes(Cache, Nodes) 
@@ -295,7 +277,7 @@ load_persistence() ->
 request_config([]) -> 0;
 request_config(Nodes) ->
 	lists:foldl(fun(Node, Acc) -> 
-				{?MODULE, Node} ! {config_request, get_cluster_name(), self()}, 
+				{?MODULE, Node} ! {config_request, self()}, 
 				Acc + 1 
 		end, 0, Nodes).
 
