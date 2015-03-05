@@ -66,7 +66,7 @@ nodes(?CONFIG_DATA(Nodes, _)) -> Nodes.
 
 nodes(?CONFIG_DATA(Nodes, _), Operation) -> nodes(Nodes, Operation);
 nodes(Nodes, import) -> lists:delete(node(), Nodes);
-nodes(Nodes, export) -> [node()|Nodes].
+nodes(Nodes, export) -> Nodes.
 
 caches(?CONFIG_DATA(_, Caches)) -> Caches.
 
