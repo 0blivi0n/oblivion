@@ -135,7 +135,12 @@ handle(<<"DELETE">>, [<<"caches">>, CacheName], Req) ->
 %GET /nodes - Return cluster node list
 handle(<<"GET">>, [<<"nodes">>], Req) ->
 	NodeList = oblivion:get_node_list(),
-	Reply = [{<<"nodes">>, NodeList}],
+	OnlineNodes = oblivion:get_online_node_list(),
+	RetList = lists:map(fun(Node) ->
+					Online = lists:member(Node, OnlineNodes),
+					[{<<"node">>, Node}, {<<"online">>, Online}]					
+			end, NodeList),
+	Reply = [{<<"nodes">>, RetList}],
 	success(200, Reply, ?BASIC_HEADER_LIST, Req);
 
 %PUT /nodes/{node} - Add node to cluster
