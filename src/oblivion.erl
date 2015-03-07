@@ -40,6 +40,7 @@ start() ->
 	ok = application:start(cclock),
 	ok = application:start(gibreel),
 	ok = application:start(kill_bill),
+	ok = application:start(oblivion_admin),
 	ok = application:start(oblivion).
 
 start_link() ->

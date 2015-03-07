@@ -31,11 +31,15 @@ stop(_State) -> ok.
 start_webserver() ->
 	{ok, HTTPPort} = application:get_env(oblivion, oblivion_http_port),
 	ServerConfig = {server_config, oblivion_server, [{port, HTTPPort}]},
+	
 	{ok, ServerID} = kill_bill:config_server(ServerConfig),
-	HTTPConfig = {webapp_config, oblivion_http,
-			[{context, "/"},
-				{action, [{oblivion_filter, [{"api", oblivion_rest}]}]},
+	APIWebAppConfig = {webapp_config, oblivion_api,
+			[{context, "/api"},
+				{action, [{oblivion_filter, [{"()", oblivion_rest}]}]},
 				{session_timeout, none}]},
-	ok = kill_bill:deploy(ServerID, HTTPConfig),
+	ok = kill_bill:deploy(ServerID, APIWebAppConfig),
+	
+	ok = oblivion_admin:deploy(ServerID),
+	
 	ok = kill_bill:start_server(ServerID),
 	ok.
