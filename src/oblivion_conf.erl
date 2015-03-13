@@ -92,7 +92,7 @@ update_nodes(Nodes, ?CONFIG_DATA(_, Caches)) ->
 	end.	
 
 add_cache(Cache, Options, ?CONFIG_DATA(Nodes, Caches)) ->
-	Caches1 = lists:keystore(Cache, 1, ?CACHE_CONFIG(Cache, Options), Caches),
+	Caches1 = lists:keystore(Cache, 1, Caches, ?CACHE_CONFIG(Cache, Options)),
 	Config = ?CONFIG_DATA(Nodes, Caches1),
 	case write(Config) of
 		ok -> {ok, Config};

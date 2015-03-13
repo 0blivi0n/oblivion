@@ -51,9 +51,13 @@ get_node_list() ->	columbo:known_nodes().
 get_online_node_list() -> columbo:online_nodes().
 
 add_node(Node) ->
-	case net_adm:ping(Node) of
-		pong -> gen_server:call(?MODULE, {add_node, Node});
-		pang -> {error, <<"Node not responding">>}
+	case validate_node(Node) of
+		{error, _}=Error -> Error;
+		ok ->
+			case net_adm:ping(Node) of
+				pong -> gen_server:call(?MODULE, {add_node, Node});
+				pang -> {error, <<"Node not responding">>}
+			end
 	end.
 
 delete_node(Node) ->
@@ -220,6 +224,13 @@ code_change(_OldVsn, State, _Extra) -> {ok, State}.
 %% ====================================================================
 %% Internal functions
 %% ====================================================================
+
+validate_node(Node) ->
+	BinNode = atom_to_binary(Node, utf8),
+	case binary:split(BinNode, <<"@">>) of
+		[_Name, _Server] -> ok;
+		_ -> {error, <<"Not valid node name">>}
+	end.
 
 cache_setup(CacheName, Options) ->
 	Config = lists:keystore(cluster_nodes, 1, Options, {cluster_nodes, ?CLUSTER_NODES_ALL}),
