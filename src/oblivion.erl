@@ -46,9 +46,9 @@ start() ->
 start_link() ->
 	gen_server:start_link(?SERVER, ?MODULE, [], []).
 
-get_node_list() ->	columbo:known_nodes().
+get_node_list() -> [node()|columbo:known_nodes()].
 
-get_online_node_list() -> columbo:online_nodes().
+get_online_node_list() -> [node()|columbo:online_nodes()].
 
 add_node(Node) ->
 	case validate_node(Node) of
