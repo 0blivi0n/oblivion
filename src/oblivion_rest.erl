@@ -163,8 +163,10 @@ handle(<<"PUT">>, [<<"nodes">>, Node], Req) ->
 %DELETE /nodes/{node} - Delete node from cluster
 handle(<<"DELETE">>, [<<"nodes">>, Node], Req) ->
 	NewNode = binary_to_atom(Node, utf8),
-	oblivion:delete_node(NewNode),
-	success(202, ?OK, ?BASIC_HEADER_LIST, Req);
+	case oblivion:delete_node(NewNode) of
+		{error, _Reason} -> unexpected_error(Req);
+		ok -> success(202, ?OK, ?BASIC_HEADER_LIST, Req)
+	end;
 
 %% Fail
 handle(_Method, _Path, Req) -> ?rest_error(?OPERATION_NOT_SUPPORTED_ERROR, Req).
