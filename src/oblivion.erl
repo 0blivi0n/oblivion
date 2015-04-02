@@ -52,7 +52,7 @@ get_online_node_list() -> [node()|columbo:online_nodes()].
 
 add_node(Node) ->
 	case validate_node(Node) of
-		{error, _}=Error -> Error;
+		{error, _} = Error -> Error;
 		ok ->
 			case net_adm:ping(Node) of
 				pong -> gen_server:call(?MODULE, {add_node, Node});
@@ -116,7 +116,7 @@ handle_call({delete_cache, CacheName}, _From, State=#state{config=Config}) ->
 
 handle_call({add_node, Node}, _From, State=#state{config=Config}) ->
 	Nodes = oblivion_conf:nodes(Config),
-	case lists:member(Node, Nodes) of
+	case lists:member(Node, [node(), Nodes]) of
 		true -> {reply, ok, State};
 		false -> 
 			case oblivion_conf:add_node(Node, Config) of
