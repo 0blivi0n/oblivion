@@ -29,7 +29,7 @@
 	]},
 	{mod, {oblivion_app, []}},
 	{env, [
-		{oblivion_http_port, 8080},
-		{oblivion_persistence_file, "./persistence.conf"}
+		{oblivion_http_port, 12522},
+		{oblivion_persistence_file, "etc/persistence.conf"}
 	]}
 ]}.

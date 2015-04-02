@@ -30,7 +30,7 @@
 
 %GET /caches/{cache}/keys/{key} - Return the value
 handle(<<"GET">>, [<<"caches">>, CacheName, <<"keys">>, Key], Req) ->
-	Cache = binary_to_atom(CacheName, utf8),
+	Cache = cache_name(CacheName),
 	case g_cache:get(Cache, Key) of
 		no_cache -> cache_not_found(Req);
 		not_found -> key_not_found(Req);
@@ -42,7 +42,7 @@ handle(<<"GET">>, [<<"caches">>, CacheName, <<"keys">>, Key], Req) ->
 handle(<<"PUT">>, [<<"caches">>, CacheName, <<"keys">>, Key], Req) ->
 	try kb_action_helper:get_json(Req) of
 		{Value, Req1} ->
-			Cache = binary_to_atom(CacheName, utf8),
+			Cache = cache_name(CacheName),
 			{Args, Req2} = kb_action_helper:get_args(Req1),
 			Options = get_options(Args),
 			case g_cache:store(Cache, Key, Value, Options) of
@@ -55,7 +55,7 @@ handle(<<"PUT">>, [<<"caches">>, CacheName, <<"keys">>, Key], Req) ->
 
 %HEAD /caches/{cache}/keys/{key} - Get key version
 handle(<<"HEAD">>, [<<"caches">>, CacheName, <<"keys">>, Key], Req) ->
-	Cache = binary_to_atom(CacheName, utf8),
+	Cache = cache_name(CacheName),
 	case g_cache:get(Cache, Key) of
 		no_cache -> cache_not_found(Req);
 		not_found -> key_not_found(Req);
@@ -65,7 +65,7 @@ handle(<<"HEAD">>, [<<"caches">>, CacheName, <<"keys">>, Key], Req) ->
 
 %DELETE /caches/{cache}/keys/{key}[?version={versionID}] - Delete key
 handle(<<"DELETE">>, [<<"caches">>, CacheName, <<"keys">>, Key], Req) ->
-	Cache = binary_to_atom(CacheName, utf8),
+	Cache = cache_name(CacheName),
 	{Args, Req1} = kb_action_helper:get_args(Req),
 	Options = get_options(Args),
 	case g_cache:remove(Cache, Key, Options) of
@@ -76,7 +76,7 @@ handle(<<"DELETE">>, [<<"caches">>, CacheName, <<"keys">>, Key], Req) ->
 
 %GET /caches/{cache}/keys - get cache key list
 handle(<<"GET">>, [<<"caches">>, CacheName, <<"keys">>], Req) ->
-	Cache = binary_to_atom(CacheName, utf8),
+	Cache = cache_name(CacheName),
 	case g_cache:get_all_keys(Cache) of
 		no_cache -> cache_not_found(Req);
 		KeyList ->
@@ -86,7 +86,7 @@ handle(<<"GET">>, [<<"caches">>, CacheName, <<"keys">>], Req) ->
 
 %DELETE /caches/{cache}/keys - Delete all key from cache 
 handle(<<"DELETE">>, [<<"caches">>, CacheName, <<"keys">>], Req) ->
-	Cache = binary_to_atom(CacheName, utf8),
+	Cache = cache_name(CacheName),
 	case g_cache:flush(Cache) of
 		no_cache -> cache_not_found(Req);
 		ok -> success(202, ?OK, ?BASIC_HEADER_LIST, Req)
@@ -97,14 +97,23 @@ handle(<<"DELETE">>, [<<"caches">>, CacheName, <<"keys">>], Req) ->
 %GET /caches - Return cache list 
 handle(<<"GET">>, [<<"caches">>], Req) ->
 	CacheList = gibreel:list_caches(),
-	Reply = [{<<"caches">>, CacheList}],
+	CacheNames = lists:filtermap(fun(Cache) -> 
+					Cache2 = atom_to_binary(Cache, utf8),
+					case re:run(Cache2, "^obv_") of
+						{match, _Captured} -> 
+							<<"obv_", CacheName/binary>> = Cache2,
+							{true, CacheName};
+						nomatch -> false
+					end							 
+			end, CacheList),
+	Reply = [{<<"caches">>, CacheNames}],
 	success(200, Reply, ?BASIC_HEADER_LIST, Req);
 
 %PUT /caches/{cache} - Create a new cache
 handle(<<"PUT">>, [<<"caches">>, CacheName], Req) ->
 	try kb_action_helper:get_json(Req) of
 		{Config, Req1} ->
-			Cache = binary_to_atom(CacheName, utf8),
+			Cache = cache_name(CacheName),
 			Options = convert_to_gibreel(Config),
 			case oblivion:create_cache(Cache, Options) of
 				{error, duplicated} -> duplicated_cache(Req1);
@@ -116,7 +125,7 @@ handle(<<"PUT">>, [<<"caches">>, CacheName], Req) ->
 
 %GET /caches/{cache} - Return cache configuration
 handle(<<"GET">>, [<<"caches">>, CacheName], Req) ->
-	Cache = binary_to_atom(CacheName, utf8),
+	Cache = cache_name(CacheName),
 	case oblivion:get_cache_config(Cache) of
 		no_cache -> cache_not_found(Req);
 		Options -> success(200, convert_from_gibreel(Options), ?BASIC_HEADER_LIST, Req)
@@ -124,7 +133,7 @@ handle(<<"GET">>, [<<"caches">>, CacheName], Req) ->
 
 %DELETE /caches/{cache} - Delete cache
 handle(<<"DELETE">>, [<<"caches">>, CacheName], Req) ->
-	Cache = binary_to_atom(CacheName, utf8),
+	Cache = cache_name(CacheName),
 	case oblivion:delete_cache(Cache) of
 		no_cache -> cache_not_found(Req);
 		ok -> success(202, ?OK, ?BASIC_HEADER_LIST, Req)
@@ -137,9 +146,9 @@ handle(<<"GET">>, [<<"nodes">>], Req) ->
 	NodeList = oblivion:get_node_list(),
 	OnlineNodes = oblivion:get_online_node_list(),
 	RetList = lists:map(fun(Node) ->
-			Online = lists:member(Node, OnlineNodes),
-			[{<<"node">>, Node}, {<<"online">>, Online}]					
-		end, NodeList),
+					Online = lists:member(Node, OnlineNodes),
+					[{<<"node">>, Node}, {<<"online">>, Online}]					
+			end, NodeList),
 	Reply = [{<<"nodes">>, RetList}],
 	success(200, Reply, ?BASIC_HEADER_LIST, Req);
 
@@ -163,6 +172,10 @@ handle(_Method, _Path, Req) -> ?rest_error(?OPERATION_NOT_SUPPORTED_ERROR, Req).
 %% ====================================================================
 %% Internal functions
 %% ====================================================================
+
+cache_name(CacheName) -> 
+	CacheName2 = <<"obv_", CacheName/binary>>,
+	binary_to_atom(CacheName2, utf8).
 
 get_options([]) -> []; 
 get_options(Args) -> 
