@@ -29,7 +29,7 @@
 -export([code_change/3, handle_call/3, handle_cast/2, handle_info/2, init/1, terminate/2]).
 -export([start/0, start_link/0]).
 -export([create_cache/2, get_cache_config/1, delete_cache/1]).
--export([get_node_list/0, add_node/1, delete_node/1, get_online_node_list/0]).
+-export([get_node_list/0, add_node/1, delete_node/1, get_online_node_list/0, get_node_port/1]).
 
 start() ->
 	ok = application:start(crypto),
@@ -63,6 +63,11 @@ add_node(Node) ->
 delete_node(Node) ->
 	gen_server:call(?MODULE, {delete_node, Node}).
 
+get_node_port(Node) when Node /= node() ->
+	gen_server:call(?MODULE, {node_port, Node});
+get_node_port(_Node) ->
+	get_node_port().
+
 create_cache(CacheName, Options) ->
 	gen_server:call(?MODULE, {create_cache, CacheName, Options}).
 
@@ -76,7 +81,7 @@ delete_cache(CacheName) ->
 %% Behavioural functions
 %% ====================================================================
 
--record(state, {config}).
+-record(state, {config, servers}).
 
 %% init
 init([]) ->
@@ -87,10 +92,22 @@ init([]) ->
 			{stop,Reason};
 		{ok, Config} -> 
 			error_logger:info_msg("~p starting on [~p]...\n", [?MODULE, self()]),
-			{ok, #state{config=Config}}
+			{ok, #state{config=Config, servers=dict:new()}}
 	end.
 
 %% handle_call
+handle_call({node_port, Node}, _From, State=#state{servers=Servers}) ->
+	case dict:find(Node, Servers) of
+		{ok, Value} -> {reply, Value, State};
+		error -> 
+			Value = gen_server:call({?MODULE, Node}, {node_port}),
+			Servers1 = dict:store(Node, Value, Servers),
+			{reply, Value, State#state{servers=Servers1}}
+	end;
+
+handle_call({node_port}, _From, State) ->
+	{reply, get_node_port(), State};
+
 handle_call({create_cache, CacheName, Options}, _From, State=#state{config=Config}) ->
 	case cache_setup(CacheName, Options) of
 		ok -> 
@@ -274,3 +291,8 @@ receive_config(_Count, DefaultConfig) ->
 		{config_response, RemoteConfig} -> RemoteConfig
 	after ?SYNC_TIMEOUT -> DefaultConfig
 	end.
+
+get_node_port() ->
+	Server = net_adm:localhost(),
+	{ok, Port} = application:get_env(oblivion, oblivion_http_port),
+	{Server, Port}.

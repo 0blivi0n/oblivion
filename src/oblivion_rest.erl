@@ -147,7 +147,19 @@ handle(<<"GET">>, [<<"nodes">>], Req) ->
 	OnlineNodes = oblivion:get_online_node_list(),
 	RetList = lists:map(fun(Node) ->
 					Online = lists:member(Node, OnlineNodes),
-					[{<<"node">>, Node}, {<<"online">>, Online}]					
+					ServerData = case Online of
+						true ->
+							{Server, Port} = oblivion:get_node_port(Node),
+							[
+								{<<"server">>, list_to_binary(Server)},
+								{<<"port">>, Port}
+								];
+						_ -> []
+					end,
+					[
+						{<<"node">>, Node}, 
+						{<<"online">>, Online}
+						] ++ ServerData
 			end, NodeList),
 	Reply = [{<<"nodes">>, RetList}],
 	success(200, Reply, ?BASIC_HEADER_LIST, Req);
