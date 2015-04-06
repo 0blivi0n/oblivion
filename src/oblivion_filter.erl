@@ -41,21 +41,25 @@ validate_content_accept(Req) ->
 	end.
 
 validate_accept(Req) ->
-	{Headers, Req1} = kb_action_helper:get_headers(Req),
-	case lists:keyfind(?HEADER_ACCEPT, 1, Headers) of
-		false -> {next, [], Req1};
-		{_, Content} ->
-			case is_valid_accept(header_value(Content)) of
-				true -> {next, [], Req1};
-				false -> ?rest_error(?INVALID_ACCEPT_HEADER_ERROR, Req1)
-			end
+	{AcceptList, Req1} = kb_action_helper:get_accept_header(Req),
+	io:format("~p~n", [AcceptList]),
+	case is_valid_accept(AcceptList) of
+		true -> {next, [], Req1};
+		false -> ?rest_error(?INVALID_ACCEPT_HEADER_ERROR, Req1)
 	end.
 
-is_valid_accept(?HEADER_VALUE_CONTENT_TYPE_JSON) -> true;
-is_valid_accept(<<"application/*">>) -> true;
-is_valid_accept(<<"*/*">>) -> true;
-is_valid_accept(<<"*">>) -> true;
-is_valid_accept(_) -> false.
+is_valid_accept([]) -> false;
+is_valid_accept([Header|T]) -> 
+	case accept(Header) of
+		false -> is_valid_accept(T);
+		_ -> true
+	end.
+
+accept(?HEADER_VALUE_CONTENT_TYPE_JSON) -> true;
+accept(<<"application/*">>) -> true;
+accept(<<"*/*">>) -> true;
+accept(<<"*">>) -> true;
+accept(_) -> false.
 
 header_value(Header) ->
 	Parts = binary:split(Header, <<";">>),
