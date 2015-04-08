@@ -92,6 +92,8 @@
 -define(ERROR_REASON_TAG, <<"reason">>).
 
 -define(VERSION_TAG, <<"version">>).
+-define(SORT_TAG, <<"sort">>).
+-define(INCLUDE_CONFIG_TAG, <<"include_config">>).
 
 %% ====================================================================
 %% OUTPUT MACROS

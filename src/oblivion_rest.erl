@@ -26,6 +26,17 @@
 %% ====================================================================
 -export([handle/3]).
 
+%% System
+
+%GET /system - Return the server verion
+handle(<<"GET">>, [<<"system">>], Req) ->
+	{ok, Version} = application:get_key(oblivion, vsn),
+	Reply = [
+			{<<"node">>, node()},
+			{<<"version">>, list_to_binary(Version)}
+			],
+	success(200, Reply, ?BASIC_HEADER_LIST, Req);
+
 %% Data management
 
 %GET /caches/{cache}/keys/{key} - Return the value
@@ -74,14 +85,18 @@ handle(<<"DELETE">>, [<<"caches">>, CacheName, <<"keys">>, Key], Req) ->
 		ok -> success(200, ?OK, ?BASIC_HEADER_LIST, Req1)
 	end;
 
-%GET /caches/{cache}/keys - get cache key list
+%GET /caches/{cache}/keys[?sort=<true|false>] - get cache key list
 handle(<<"GET">>, [<<"caches">>, CacheName, <<"keys">>], Req) ->
 	Cache = cache_name(CacheName),
+	{Args, Req1} = kb_action_helper:get_args(Req),
+	Options = get_options(Args),
+	Sort = option(Options, ?SORT_TAG, false),
 	case g_cache:get_all_keys(Cache) of
-		no_cache -> cache_not_found(Req);
+		no_cache -> cache_not_found(Req1);
 		KeyList ->
-			Reply = [{<<"keys">>, KeyList}],
-			success(200, Reply, ?BASIC_HEADER_LIST, Req)
+			SortedKeyList = sort(KeyList, Sort),
+			Reply = [{<<"keys">>, SortedKeyList}],
+			success(200, Reply, ?BASIC_HEADER_LIST, Req1)
 	end;
 
 %DELETE /caches/{cache}/keys - Delete all key from cache 
@@ -94,20 +109,48 @@ handle(<<"DELETE">>, [<<"caches">>, CacheName, <<"keys">>], Req) ->
 
 %% Cache management
 
-%GET /caches - Return cache list 
+%GET /caches[?sort=<true|false>[&include_config=<true|false>]] - Return cache list 
 handle(<<"GET">>, [<<"caches">>], Req) ->
+	{Args, Req1} = kb_action_helper:get_args(Req),
+	Options = get_options(Args),
+	Sort = option(Options, ?SORT_TAG, false),
+	Include = option(Options, ?INCLUDE_CONFIG_TAG, false),
 	CacheList = gibreel:list_caches(),
-	CacheNames = lists:filtermap(fun(Cache) -> 
-					Cache2 = atom_to_binary(Cache, utf8),
-					case re:run(Cache2, "^obv_") of
-						{match, _Captured} -> 
-							<<"obv_", CacheName/binary>> = Cache2,
-							{true, CacheName};
-						nomatch -> false
-					end							 
-			end, CacheList),
-	Reply = [{<<"caches">>, CacheNames}],
-	success(200, Reply, ?BASIC_HEADER_LIST, Req);
+	SortedCacheList = sort(CacheList, Sort),
+	FunConfig = fun(Cache, true) ->
+			case oblivion:get_cache_config(Cache) of
+				no_cache -> ignore;
+				Config -> {ok, convert_from_gibreel(Config)}
+			end;
+		(_Cache, false) -> name
+	end,
+	FunName = fun(Cache) ->
+			Cache2 = atom_to_binary(Cache, utf8),
+			case re:run(Cache2, "^obv_") of
+				{match, _Captured} -> 
+					<<"obv_", CacheName/binary>> = Cache2,
+					{ok, CacheName};
+				nomatch -> ignore
+			end					  
+	end,
+	Caches = lists:filtermap(fun(Cache) -> 			 
+					case FunName(Cache) of
+						{ok, Name} ->
+							case FunConfig(Cache, Include) of
+								{ok, Config} ->
+									Reply = [
+											{<<"cache">>, Name},
+											{<<"config">>, Config}
+											],
+									{true, Reply};
+								ignore -> false;
+								name -> {true, Name}
+							end;
+						ignore -> false
+					end
+			end, SortedCacheList),
+	Reply = [{<<"caches">>, Caches}],
+	success(200, Reply, ?BASIC_HEADER_LIST, Req1);
 
 %PUT /caches/{cache} - Create a new cache
 handle(<<"PUT">>, [<<"caches">>, CacheName], Req) ->
@@ -141,18 +184,23 @@ handle(<<"DELETE">>, [<<"caches">>, CacheName], Req) ->
 
 %% System management
 
-%GET /nodes - Return cluster node list
+%GET /nodes[?sort=<true|false>] - Return cluster node list
 handle(<<"GET">>, [<<"nodes">>], Req) ->
+	{Args, Req1} = kb_action_helper:get_args(Req),
+	Options = get_options(Args),
+	Sort = option(Options, ?SORT_TAG, false),
 	NodeList = oblivion:get_node_list(),
 	OnlineNodes = oblivion:get_online_node_list(),
+	SortedNodeList = sort(NodeList, Sort),
 	RetList = lists:map(fun(Node) ->
 					Online = lists:member(Node, OnlineNodes),
 					ServerData = case Online of
 						true ->
-							{Server, Port} = oblivion:get_node_port(Node),
+							{Server, Port, Broadcast} = oblivion:get_node_port(Node),
 							[
 								{<<"server">>, list_to_binary(Server)},
-								{<<"port">>, Port}
+								{<<"port">>, Port},
+								{<<"broadcast">>, Broadcast}
 								];
 						_ -> []
 					end,
@@ -160,9 +208,9 @@ handle(<<"GET">>, [<<"nodes">>], Req) ->
 						{<<"node">>, Node}, 
 						{<<"online">>, Online}
 						] ++ ServerData
-			end, NodeList),
+			end, SortedNodeList),
 	Reply = [{<<"nodes">>, RetList}],
-	success(200, Reply, ?BASIC_HEADER_LIST, Req);
+	success(200, Reply, ?BASIC_HEADER_LIST, Req1);
 
 %PUT /nodes/{node} - Add node to cluster
 handle(<<"PUT">>, [<<"nodes">>, Node], Req) ->
@@ -194,9 +242,22 @@ cache_name(CacheName) ->
 get_options([]) -> []; 
 get_options(Args) -> 
 	lists:filtermap(fun({?VERSION_TAG, Version}) -> {true, {?OPTION_VERSION, Version}};
+			({?SORT_TAG, <<"true">>}) -> {true, {?SORT_TAG, true}};
+			({?SORT_TAG, <<"false">>}) -> {true, {?SORT_TAG, false}};
+			({?INCLUDE_CONFIG_TAG, <<"true">>}) -> {true, {?INCLUDE_CONFIG_TAG, true}};
+			({?INCLUDE_CONFIG_TAG, <<"false">>}) -> {true, {?INCLUDE_CONFIG_TAG, false}};					   
 			(_) -> false
 		end, Args).
 
+option([], _Tag, Default) -> Default;
+option(Options, Tag, Default) ->
+	case lists:keyfind(Tag, 1, Options) of
+		false -> Default;
+		{_, Value} -> Value
+	end.
+
+sort(List, false) -> List;
+sort(List, true) -> lists:sort(List).
 
 convert_to_gibreel(Options) -> convert_to_gibreel(Options, []).
 

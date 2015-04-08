@@ -39,6 +39,10 @@ start() ->
 	ok = application:start(columbo),
 	ok = application:start(cclock),
 	ok = application:start(gibreel),
+	ok = application:start(jsx),
+	ok = application:start(syntax_tools),
+	ok = application:start(compiler),
+	ok = application:start(erlydtl),
 	ok = application:start(kill_bill),
 	ok = application:start(oblivion_admin),
 	ok = application:start(oblivion).
@@ -295,4 +299,5 @@ receive_config(_Count, DefaultConfig) ->
 get_node_port() ->
 	Server = net_adm:localhost(),
 	{ok, Port} = application:get_env(oblivion, oblivion_http_port),
-	{Server, Port}.
+	{ok, Broadcast} = application:get_env(columbo, udp_port),
+	{Server, Port, Broadcast}.

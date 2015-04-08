@@ -42,7 +42,6 @@ validate_content_accept(Req) ->
 
 validate_accept(Req) ->
 	{AcceptList, Req1} = kb_action_helper:get_accept_header(Req),
-	io:format("~p~n", [AcceptList]),
 	case is_valid_accept(AcceptList) of
 		true -> {next, [], Req1};
 		false -> ?rest_error(?INVALID_ACCEPT_HEADER_ERROR, Req1)
