@@ -30,19 +30,13 @@
 
 %GET /system - Return the server verion
 handle(<<"GET">>, [<<"system">>], Req) ->
-	{ok, Version} = application:get_key(oblivion, vsn),
-	Reply = [
-			{<<"node">>, node()},
-			{<<"version">>, list_to_binary(Version)}
-			],
-	success(200, Reply, ?BASIC_HEADER_LIST, Req);
+	success(200, oblivion_api:system(), ?BASIC_HEADER_LIST, Req);
 
 %% Data management
 
 %GET /caches/{cache}/keys/{key} - Return the value
 handle(<<"GET">>, [<<"caches">>, CacheName, <<"keys">>, Key], Req) ->
-	Cache = cache_name(CacheName),
-	case g_cache:get(Cache, Key) of
+	case oblivion_api:get(CacheName, Key) of
 		no_cache -> cache_not_found(Req);
 		not_found -> key_not_found(Req);
 		error -> unexpected_error(Req);
@@ -53,10 +47,9 @@ handle(<<"GET">>, [<<"caches">>, CacheName, <<"keys">>, Key], Req) ->
 handle(<<"PUT">>, [<<"caches">>, CacheName, <<"keys">>, Key], Req) ->
 	try kb_action_helper:get_json(Req) of
 		{Value, Req1} ->
-			Cache = cache_name(CacheName),
 			{Args, Req2} = kb_action_helper:get_args(Req1),
-			Options = get_options(Args),
-			case g_cache:store(Cache, Key, Value, Options) of
+			Options = options(Args, [?OPTION_VERSION]),
+			case oblivion_api:put(CacheName, Key, Value, Options) of
 				no_cache -> cache_not_found(Req2);
 				invalid_version -> invalid_version(Req2);
 				{ok, Version} -> success(201, ?OK, ?ETAG_HEADER_LIST(Version), Req2)
@@ -66,20 +59,18 @@ handle(<<"PUT">>, [<<"caches">>, CacheName, <<"keys">>, Key], Req) ->
 
 %HEAD /caches/{cache}/keys/{key} - Get key version
 handle(<<"HEAD">>, [<<"caches">>, CacheName, <<"keys">>, Key], Req) ->
-	Cache = cache_name(CacheName),
-	case g_cache:get(Cache, Key) of
+	case oblivion_api:version(CacheName, Key) of
 		no_cache -> cache_not_found(Req);
 		not_found -> key_not_found(Req);
 		error -> unexpected_error(Req);
-		{ok, _Value, Version} -> success_head(200, ?ETAG_HEADER_LIST(Version), Req)
+		{ok, Version} -> success_head(200, ?ETAG_HEADER_LIST(Version), Req)
 	end;
 
 %DELETE /caches/{cache}/keys/{key}[?version={versionID}] - Delete key
 handle(<<"DELETE">>, [<<"caches">>, CacheName, <<"keys">>, Key], Req) ->
-	Cache = cache_name(CacheName),
 	{Args, Req1} = kb_action_helper:get_args(Req),
-	Options = get_options(Args),
-	case g_cache:remove(Cache, Key, Options) of
+	Options = options(Args, [?OPTION_VERSION]),
+	case oblivion_api:delete(CacheName, Key, Options) of
 		no_cache -> cache_not_found(Req1);
 		invalid_version -> invalid_version(Req1);
 		ok -> success(200, ?OK, ?BASIC_HEADER_LIST, Req1)
@@ -87,22 +78,19 @@ handle(<<"DELETE">>, [<<"caches">>, CacheName, <<"keys">>, Key], Req) ->
 
 %GET /caches/{cache}/keys[?sort=<true|false>] - get cache key list
 handle(<<"GET">>, [<<"caches">>, CacheName, <<"keys">>], Req) ->
-	Cache = cache_name(CacheName),
 	{Args, Req1} = kb_action_helper:get_args(Req),
-	Options = get_options(Args),
-	Sort = option(Options, ?SORT_TAG, false),
-	case g_cache:get_all_keys(Cache) of
+	Options = options(Args, [?SORT_TAG]),
+	Sort = option(?SORT_TAG, Options, false),
+	case oblivion_api:keys(CacheName, Sort) of
 		no_cache -> cache_not_found(Req1);
 		KeyList ->
-			SortedKeyList = sort(KeyList, Sort),
-			Reply = [{<<"keys">>, SortedKeyList}],
+			Reply = [{<<"keys">>, KeyList}],
 			success(200, Reply, ?BASIC_HEADER_LIST, Req1)
 	end;
 
 %DELETE /caches/{cache}/keys - Delete all key from cache 
 handle(<<"DELETE">>, [<<"caches">>, CacheName, <<"keys">>], Req) ->
-	Cache = cache_name(CacheName),
-	case g_cache:flush(Cache) of
+	case oblivion_api:flush(CacheName) of
 		no_cache -> cache_not_found(Req);
 		ok -> success(202, ?OK, ?BASIC_HEADER_LIST, Req)
 	end;
@@ -112,43 +100,10 @@ handle(<<"DELETE">>, [<<"caches">>, CacheName, <<"keys">>], Req) ->
 %GET /caches[?sort=<true|false>[&include_config=<true|false>]] - Return cache list 
 handle(<<"GET">>, [<<"caches">>], Req) ->
 	{Args, Req1} = kb_action_helper:get_args(Req),
-	Options = get_options(Args),
-	Sort = option(Options, ?SORT_TAG, false),
-	Include = option(Options, ?INCLUDE_CONFIG_TAG, false),
-	CacheList = gibreel:list_caches(),
-	SortedCacheList = sort(CacheList, Sort),
-	FunConfig = fun(Cache, true) ->
-			case oblivion:get_cache_config(Cache) of
-				no_cache -> ignore;
-				Config -> {ok, convert_from_gibreel(Config)}
-			end;
-		(_Cache, false) -> name
-	end,
-	FunName = fun(Cache) ->
-			Cache2 = atom_to_binary(Cache, utf8),
-			case re:run(Cache2, "^obv_") of
-				{match, _Captured} -> 
-					<<"obv_", CacheName/binary>> = Cache2,
-					{ok, CacheName};
-				nomatch -> ignore
-			end					  
-	end,
-	Caches = lists:filtermap(fun(Cache) -> 			 
-					case FunName(Cache) of
-						{ok, Name} ->
-							case FunConfig(Cache, Include) of
-								{ok, Config} ->
-									Reply = [
-											{<<"cache">>, Name},
-											{<<"config">>, Config}
-											],
-									{true, Reply};
-								ignore -> false;
-								name -> {true, Name}
-							end;
-						ignore -> false
-					end
-			end, SortedCacheList),
+	Options = options(Args, [?SORT_TAG, ?INCLUDE_CONFIG_TAG]),
+	Sort = option(?SORT_TAG, Options, false),
+	Include = option(?INCLUDE_CONFIG_TAG, Options, false),
+	Caches = oblivion_api:caches(Include, Sort),
 	Reply = [{<<"caches">>, Caches}],
 	success(200, Reply, ?BASIC_HEADER_LIST, Req1);
 
@@ -156,9 +111,7 @@ handle(<<"GET">>, [<<"caches">>], Req) ->
 handle(<<"PUT">>, [<<"caches">>, CacheName], Req) ->
 	try kb_action_helper:get_json(Req) of
 		{Config, Req1} ->
-			Cache = cache_name(CacheName),
-			Options = convert_to_gibreel(Config),
-			case oblivion:create_cache(Cache, Options) of
+			case oblivion_api:create(CacheName, Config) of
 				{error, duplicated} -> duplicated_cache(Req1);
 				{error, Reason} -> validation_error(Reason, Req1);
 				ok -> success(201, ?OK, ?BASIC_HEADER_LIST, Req1)
@@ -168,16 +121,14 @@ handle(<<"PUT">>, [<<"caches">>, CacheName], Req) ->
 
 %GET /caches/{cache} - Return cache configuration
 handle(<<"GET">>, [<<"caches">>, CacheName], Req) ->
-	Cache = cache_name(CacheName),
-	case oblivion:get_cache_config(Cache) of
+	case oblivion_api:config(CacheName) of
 		no_cache -> cache_not_found(Req);
-		Options -> success(200, convert_from_gibreel(Options), ?BASIC_HEADER_LIST, Req)
+		Config -> success(200, Config, ?BASIC_HEADER_LIST, Req)
 	end;
 
 %DELETE /caches/{cache} - Delete cache
 handle(<<"DELETE">>, [<<"caches">>, CacheName], Req) ->
-	Cache = cache_name(CacheName),
-	case oblivion:delete_cache(Cache) of
+	case oblivion_api:drop(CacheName) of
 		no_cache -> cache_not_found(Req);
 		ok -> success(202, ?OK, ?BASIC_HEADER_LIST, Req)
 	end;
@@ -187,43 +138,22 @@ handle(<<"DELETE">>, [<<"caches">>, CacheName], Req) ->
 %GET /nodes[?sort=<true|false>] - Return cluster node list
 handle(<<"GET">>, [<<"nodes">>], Req) ->
 	{Args, Req1} = kb_action_helper:get_args(Req),
-	Options = get_options(Args),
-	Sort = option(Options, ?SORT_TAG, false),
-	NodeList = oblivion:get_node_list(),
-	OnlineNodes = oblivion:get_online_node_list(),
-	SortedNodeList = sort(NodeList, Sort),
-	RetList = lists:map(fun(Node) ->
-					Online = lists:member(Node, OnlineNodes),
-					ServerData = case Online of
-						true ->
-							{Server, Port, Broadcast} = oblivion:get_node_port(Node),
-							[
-								{<<"server">>, list_to_binary(Server)},
-								{<<"port">>, Port},
-								{<<"broadcast">>, Broadcast}
-								];
-						_ -> []
-					end,
-					[
-						{<<"node">>, Node}, 
-						{<<"online">>, Online}
-						] ++ ServerData
-			end, SortedNodeList),
-	Reply = [{<<"nodes">>, RetList}],
+	Options = options(Args, [?SORT_TAG]),
+	Sort = option(?SORT_TAG, Options, false),
+	Nodes = oblivion_api:nodes(Sort),
+	Reply = [{<<"nodes">>, Nodes}],
 	success(200, Reply, ?BASIC_HEADER_LIST, Req1);
 
 %PUT /nodes/{node} - Add node to cluster
 handle(<<"PUT">>, [<<"nodes">>, Node], Req) ->
-	NewNode = binary_to_atom(Node, utf8),
-	case oblivion:add_node(NewNode) of
+	case oblivion_api:add_node(Node) of
 		{error, Reason} -> validation_error(Reason, Req);
 		ok -> success(202, ?OK, ?BASIC_HEADER_LIST, Req)
 	end;
 
 %DELETE /nodes/{node} - Delete node from cluster
 handle(<<"DELETE">>, [<<"nodes">>, Node], Req) ->
-	NewNode = binary_to_atom(Node, utf8),
-	case oblivion:delete_node(NewNode) of
+	case oblivion_api:delete_node(Node) of
 		{error, _Reason} -> unexpected_error(Req);
 		ok -> success(202, ?OK, ?BASIC_HEADER_LIST, Req)
 	end;
@@ -235,48 +165,23 @@ handle(_Method, _Path, Req) -> ?rest_error(?OPERATION_NOT_SUPPORTED_ERROR, Req).
 %% Internal functions
 %% ====================================================================
 
-cache_name(CacheName) -> 
-	CacheName2 = <<"obv_", CacheName/binary>>,
-	binary_to_atom(CacheName2, utf8).
+options([], _Select) -> []; 
+options(Args, Select) -> 
+	Options = lists:filtermap(fun({?VERSION_TAG, Version}) -> {true, {?OPTION_VERSION, Version}};
+				({?SORT_TAG, <<"true">>}) -> {true, {?SORT_TAG, true}};
+				({?SORT_TAG, <<"false">>}) -> {true, {?SORT_TAG, false}};
+				({?INCLUDE_CONFIG_TAG, <<"true">>}) -> {true, {?INCLUDE_CONFIG_TAG, true}};
+				({?INCLUDE_CONFIG_TAG, <<"false">>}) -> {true, {?INCLUDE_CONFIG_TAG, false}};					   
+				(_) -> false
+			end, Args),
+	lists:filter(fun({Key, _}) -> lists:member(Key, Select) end, Options).
 
-get_options([]) -> []; 
-get_options(Args) -> 
-	lists:filtermap(fun({?VERSION_TAG, Version}) -> {true, {?OPTION_VERSION, Version}};
-			({?SORT_TAG, <<"true">>}) -> {true, {?SORT_TAG, true}};
-			({?SORT_TAG, <<"false">>}) -> {true, {?SORT_TAG, false}};
-			({?INCLUDE_CONFIG_TAG, <<"true">>}) -> {true, {?INCLUDE_CONFIG_TAG, true}};
-			({?INCLUDE_CONFIG_TAG, <<"false">>}) -> {true, {?INCLUDE_CONFIG_TAG, false}};					   
-			(_) -> false
-		end, Args).
-
-option([], _Tag, Default) -> Default;
-option(Options, Tag, Default) ->
+option(_Tag, [], Default) -> Default;
+option(Tag, Options, Default) ->
 	case lists:keyfind(Tag, 1, Options) of
 		false -> Default;
 		{_, Value} -> Value
 	end.
-
-sort(List, false) -> List;
-sort(List, true) -> lists:sort(List).
-
-convert_to_gibreel(Options) -> convert_to_gibreel(Options, []).
-
-convert_to_gibreel([{<<"max-age">>, Value}|T], Output) -> convert_to_gibreel(T, [{max_age, Value}|Output]);
-convert_to_gibreel([{<<"max-size">>, Value}|T], Output) -> convert_to_gibreel(T, [{max_size, Value}|Output]);
-convert_to_gibreel([{<<"synchronize-on-startup">>, true}|T], Output) -> convert_to_gibreel(T, [{sync_mode, ?FULL_SYNC_MODE}|Output]);
-convert_to_gibreel([{<<"synchronize-on-startup">>, false}|T], Output) -> convert_to_gibreel(T, [{sync_mode, ?LAZY_SYNC_MODE}|Output]);
-convert_to_gibreel([_|T], Output) -> convert_to_gibreel(T, Output);
-convert_to_gibreel([], Output) -> Output.
-
-convert_from_gibreel(Options) -> 
-	lists:filtermap(fun({max_age, ?NO_MAX_AGE}) -> false;
-			({max_age, Value}) -> {true, {<<"max-age">>, Value}};
-			({max_size, ?NO_MAX_SIZE}) -> false;
-			({max_size, Value}) -> {true, {<<"max-size">>, Value}};
-			({sync_mode, ?LAZY_SYNC_MODE}) -> {true, {<<"synchronize-on-startup">>, false}};
-			({sync_mode, ?FULL_SYNC_MODE}) -> {true, {<<"synchronize-on-startup">>, true}};
-			(_) -> false
-		end, Options).
 
 unexpected_error(Req) -> ?rest_error(?UNEXPECTED_ERROR, Req).
 

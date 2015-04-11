@@ -28,8 +28,8 @@
 %% ====================================================================
 -export([code_change/3, handle_call/3, handle_cast/2, handle_info/2, init/1, terminate/2]).
 -export([start/0, start_link/0]).
--export([create_cache/2, get_cache_config/1, delete_cache/1]).
--export([get_node_list/0, add_node/1, delete_node/1, get_online_node_list/0, get_node_port/1]).
+-export([create_cache/2, delete_cache/1]).
+-export([add_node/1, delete_node/1, get_node_port/1]).
 
 start() ->
 	ok = application:start(crypto),
@@ -49,10 +49,6 @@ start() ->
 
 start_link() ->
 	gen_server:start_link(?SERVER, ?MODULE, [], []).
-
-get_node_list() -> [node()|columbo:known_nodes()].
-
-get_online_node_list() -> [node()|columbo:online_nodes()].
 
 add_node(Node) ->
 	case validate_node(Node) of
@@ -74,9 +70,6 @@ get_node_port(_Node) ->
 
 create_cache(CacheName, Options) ->
 	gen_server:call(?MODULE, {create_cache, CacheName, Options}).
-
-get_cache_config(CacheName) ->
-	gibreel:cache_config(CacheName).
 
 delete_cache(CacheName) ->
 	gen_server:call(?MODULE, {delete_cache, CacheName}).
@@ -200,10 +193,10 @@ handle_info({nodes, NewNodes}, State=#state{config=Config}) ->
 			columbo:add_nodes(NewNodes),
 			KnownNodes = columbo:known_nodes(),
 			lists:foreach(fun(Node) ->
-					case lists:member(Node, NewNodes) of
-						true -> ok;
-						false -> columbo:delete_node(Node)
-					end
+						case lists:member(Node, NewNodes) of
+							true -> ok;
+							false -> columbo:delete_node(Node)
+						end
 				end, KnownNodes),
 			{noreply, State#state{config=Config1}};
 		{error, Reason} ->
