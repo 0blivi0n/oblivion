@@ -13,7 +13,7 @@
 %% limitations under the License.
 %%
 
--module(oblivion).
+-module(oblivion_server).
 
 -include_lib("gibreel/include/gibreel.hrl").
 
@@ -27,25 +27,9 @@
 %% API functions
 %% ====================================================================
 -export([code_change/3, handle_call/3, handle_cast/2, handle_info/2, init/1, terminate/2]).
--export([start/0, start_link/0]).
+-export([start_link/0]).
 -export([create_cache/2, delete_cache/1]).
 -export([add_node/1, delete_node/1, get_node_port/1]).
-
-start() ->
-	ok = application:start(crypto),
-	ok = application:start(ranch),
-	ok = application:start(cowlib),
-	ok = application:start(cowboy),
-	ok = application:start(columbo),
-	ok = application:start(cclock),
-	ok = application:start(gibreel),
-	ok = application:start(jsx),
-	ok = application:start(syntax_tools),
-	ok = application:start(compiler),
-	ok = application:start(erlydtl),
-	ok = application:start(kill_bill),
-	ok = application:start(oblivion_admin),
-	ok = application:start(oblivion).
 
 start_link() ->
 	gen_server:start_link(?SERVER, ?MODULE, [], []).

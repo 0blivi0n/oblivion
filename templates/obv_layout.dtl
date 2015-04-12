@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>0blivi0n-cache - admin</title>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+    <meta name="description" content="0blivi0n-cache cluster admin">
+    <meta name="keywords" content="oblivion,cache,cluster,nodes,admin">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="{% static file="/css/bootstrap.min.css"%}" rel="stylesheet" media="screen">
+    <link href="{% static file="/css/oblivion.css"%}" rel="stylesheet" media="screen">
+    <!--[if lt IE 9]>
+      <script src="{% static file="/js/html5shiv.js"%}"></script>
+      <script src="{% static file="/js/respond.min.js"%}"></script>
+      <script src="{% static file="/js/json2.min.js"%}"></script>
+    <![endif]-->    
+    <link rel="shortcut icon" href="{% static file="/img/oblivion-icon.ico"%}">
+    <link rel="apple-touch-icon" href="{% static file="/img/oblivion-icon.png"%}">
+  </head>
+  <body>
+    <nav class="navbar navbar-default navbar-fixed-top">
+      <div class="container">
+        <div class="navbar-header">
+          <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#navbar" aria-expanded="false" aria-controls="navbar">
+            <span class="icon-bar"></span>
+            <span class="icon-bar"></span>
+            <span class="icon-bar"></span>
+          </button>
+          <div class="navbar-brand">
+            <img src="{% static file="/img/oblivion-logo.png"%}" alt="0" title="0blivi0n logo">
+          </div>
+        </div>
+        <div id="navbar" class="navbar-collapse collapse">
+          <ul class="nav navbar-nav">
+            <li class="active"><a href="#">Caches</a></li>
+            <li><a href="#contact">Cluster</a></li>
+          </ul>
+          <ul class="nav navbar-nav navbar-right">
+            <li><a href="#about">About</a></li>
+          </ul>
+        </div>
+      </div>
+    </nav>  
+    <div class="container"> 
+      {% block content %}
+      {% endblock %}
+    <script src="{% static file="/js/jquery.min.js"%}"></script>
+    <script src="{% static file="/js/bootstrap.min.js"%}"></script>
+  </body>
+</html>

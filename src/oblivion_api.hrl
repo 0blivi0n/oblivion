@@ -17,3 +17,14 @@
 -define(KEY_MAX_AGE, <<"max-age">>).
 -define(KEY_MAX_SIZE, <<"max-size">>).
 -define(KEY_STARTUP_SYNC, <<"synchronize-on-startup">>).
+
+-define(KEY_NODE, <<"node">>).
+-define(KEY_VERSION, <<"version">>).
+
+-define(KEY_CACHE, <<"cache">>).
+-define(KEY_CONFIG, <<"config">>).
+
+-define(KEY_SERVER, <<"server">>).
+-define(KEY_PORT, <<"port">>).
+-define(KEY_BROADCAST, <<"broadcast">>).
+-define(KEY_ONLINE, <<"online">>).

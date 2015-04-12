@@ -23,23 +23,30 @@
 -export([stop/1]).
 
 start(_Type, _Args) ->
+	{ok, Pid} = oblivion_sup:start_link(),
 	ok = start_webserver(),
-	oblivion_sup:start_link().
+	{ok, Pid}.
 
 stop(_State) -> ok.
 
 start_webserver() ->
 	{ok, HTTPPort} = application:get_env(oblivion, oblivion_http_port),
 	ServerConfig = {server_config, oblivion_server, [{port, HTTPPort}]},
-	
 	{ok, ServerID} = kill_bill:config_server(ServerConfig),
-	APIWebAppConfig = {webapp_config, oblivion_api,
-			[{context, "/api"},
-				{action, [{oblivion_filter, [{"/", oblivion_rest}]}]},
-				{session_timeout, none}]},
-	ok = kill_bill:deploy(ServerID, APIWebAppConfig),
 	
-	ok = oblivion_admin:deploy(ServerID),
+	{ok, AppName} = application:get_application(),
+	WebAppConfig = {webapp_config, oblivion_web,
+			[{context, "/"},
+				{action, [
+						{oblivion_filter, [{"api", oblivion_rest}]},
+						{"/", oblivion_admin}
+						]},
+				{static, [
+						{path, "static"},
+						{priv_dir, AppName, "www"}
+						]},			 
+				{session_timeout, none}]},
+	ok = kill_bill:deploy(ServerID, WebAppConfig),
 	
 	ok = kill_bill:start_server(ServerID),
 	ok.

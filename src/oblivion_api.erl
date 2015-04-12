@@ -32,7 +32,7 @@
 
 system() ->
 	{ok, Version} = application:get_key(oblivion, vsn),
-	[{<<"node">>, node()}, {<<"version">>, list_to_binary(Version)}].	
+	[{?KEY_NODE, node()}, {?KEY_VERSION, list_to_binary(Version)}].	
 
 get(CacheName, Key) ->
 	Cache = cache_name(CacheName),
@@ -89,8 +89,8 @@ caches(Include, Sort) ->
 						case FunConfig(Cache, Include) of
 							{ok, Config} ->
 								Reply = [
-										{<<"cache">>, Name},
-										{<<"config">>, Config}
+										{?KEY_CACHE, Name},
+										{?KEY_CONFIG, Config}
 										],
 								{true, Reply};
 							ignore -> false;
@@ -103,7 +103,7 @@ caches(Include, Sort) ->
 create(CacheName, Config) ->
 	Cache = cache_name(CacheName),
 	Options = convert_to_gibreel(Config),
-	oblivion:create_cache(Cache, Options).
+	oblivion_server:create_cache(Cache, Options).
 
 config(CacheName) ->
 	Cache = cache_name(CacheName),
@@ -114,7 +114,7 @@ config(CacheName) ->
 
 drop(CacheName) ->
 	Cache = cache_name(CacheName),
-	oblivion:delete_cache(Cache).
+	oblivion_server:delete_cache(Cache).
 
 nodes(Sort) ->
 	NodeList = node_list(),
@@ -124,17 +124,17 @@ nodes(Sort) ->
 				Online = lists:member(Node, OnlineNodes),
 				ServerData = case Online of
 					true ->
-						{Server, Port, Broadcast} = oblivion:get_node_port(Node),
+						{Server, Port, Broadcast} = oblivion_server:get_node_port(Node),
 						[
-							{<<"server">>, list_to_binary(Server)},
-							{<<"port">>, Port},
-							{<<"broadcast">>, Broadcast}
+							{?KEY_SERVER, list_to_binary(Server)},
+							{?KEY_PORT, Port},
+							{?KEY_BROADCAST, Broadcast}
 							];
 					_ -> []
 				end,
 				[
-					{<<"node">>, Node}, 
-					{<<"online">>, Online}
+					{?KEY_NODE, Node}, 
+					{?KEY_ONLINE, Online}
 					] ++ ServerData
 		end, SortedNodeList).
 
@@ -145,12 +145,12 @@ online_node_list() -> [node()|columbo:online_nodes()].
 add_node(NodeName) when is_binary(NodeName) -> 
 	Node = binary_to_atom(NodeName, utf8),
 	add_node(Node);
-add_node(Node) -> oblivion:add_node(Node).
+add_node(Node) -> oblivion_server:add_node(Node).
 
 delete_node(NodeName) when is_binary(NodeName) -> 
 	Node = binary_to_atom(NodeName, utf8),
 	delete_node(Node);
-delete_node(Node) -> oblivion:delete_node(Node).
+delete_node(Node) -> oblivion_server:delete_node(Node).
 
 %% ====================================================================
 %% Internal functions

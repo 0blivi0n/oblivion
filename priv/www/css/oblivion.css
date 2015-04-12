@@ -1,0 +1,9 @@
+.navbar .navbar-brand {
+	max-height: 40px;
+	overflow: visible;
+	padding-top: 5px;
+}
+
+body {
+	padding-top: 70px;
+}
