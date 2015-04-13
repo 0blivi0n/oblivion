@@ -14,9 +14,9 @@
 %% limitations under the License.
 %%
 
--define(KEY_MAX_AGE, <<"max-age">>).
--define(KEY_MAX_SIZE, <<"max-size">>).
--define(KEY_STARTUP_SYNC, <<"synchronize-on-startup">>).
+-define(KEY_MAX_AGE, <<"maxAge">>).
+-define(KEY_MAX_SIZE, <<"maxSize">>).
+-define(KEY_STARTUP_SYNC, <<"synchronizeOnStartup">>).
 
 -define(KEY_NODE, <<"node">>).
 -define(KEY_VERSION, <<"version">>).

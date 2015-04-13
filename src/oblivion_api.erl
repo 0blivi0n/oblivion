@@ -68,7 +68,7 @@ caches(Include, Sort) ->
 	CacheList = gibreel:list_caches(),
 	SortedCacheList = sort(CacheList, Sort),
 	FunConfig = fun(Cache, true) ->
-			case oblivion:get_cache_config(Cache) of
+			case gibreel:cache_config(Cache) of
 				no_cache -> ignore;
 				Config -> {ok, convert_from_gibreel(Config)}
 			end;

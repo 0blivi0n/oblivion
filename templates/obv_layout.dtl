@@ -32,18 +32,29 @@
         </div>
         <div id="navbar" class="navbar-collapse collapse">
           <ul class="nav navbar-nav">
-            <li class="active"><a href="#">Caches</a></li>
-            <li><a href="#contact">Cluster</a></li>
+            <li{% if menu == 1 %} class="active"{% endif %}><a href="{% context %}cache/list">Caches</a></li>
+            <li{% if menu == 2 %} class="active"{% endif %}><a href="{% context %}node/list">Cluster</a></li>
           </ul>
           <ul class="nav navbar-nav navbar-right">
-            <li><a href="#about">About</a></li>
+            <li{% if menu == 3 %} class="active"{% endif %}><a href="{% context %}about">About</a></li>
           </ul>
         </div>
       </div>
     </nav>  
-    <div class="container"> 
-      {% block content %}
-      {% endblock %}
+    <div class="container">
+      <div class="row">
+        <div class="col-sm-12">
+          <h5 class="text-right">
+            {{ system.node }} <span class="label label-default">{{ system.version }}</span>
+          </h5>
+        </div>
+      </div>
+      <div class="row"> 
+        <div class="col-sm-12">
+          {% block content %}
+          {% endblock %}
+        </div>
+      </div>
     <script src="{% static file="/js/jquery.min.js"%}"></script>
     <script src="{% static file="/js/bootstrap.min.js"%}"></script>
   </body>

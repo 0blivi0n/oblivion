@@ -1,5 +1,40 @@
 {% extends "obv_layout.dtl" %}
 
 {% block content %}
-	
-{% endblock %}
+	{% for cache in caches %}
+		<div class="panel panel-default">
+			<div class="panel-heading">
+				<h3 class="panel-title">{{cache.cache}}</h3>
+			</div>
+			<div class="panel-body">
+				{% if cache.config.maxSize %}
+				<div class="row">
+					<div class="col-sm-12">
+						<label>Maximum size:</label> {{cache.config.maxSize}}
+					</div>
+				</div>
+				{% endif %}
+				{% if cache.config.maxAge %}
+				<div class="row">
+					<div class="col-sm-12">
+						<label>Expire after:</label> {{cache.config.maxAge}} seconds
+					</div>
+				</div>
+				{% endif %}	
+				<div class="row">
+					<div class="col-sm-12">
+						<label>Synchronize on startup:</label> {{cache.config.synchronizeOnStartup}}
+					</div>
+				</div>						
+			</div>
+			<ul class="list-group">
+				<li class="list-group-item text-right">
+					<a href="{% context %}cache/delete">Remove</a>
+				</li>
+			</ul>
+		</div>	
+	{% endfor %}
+
+	<a href="{% context %}cache/create" class="btn btn-primary btn-lg btn-block" role="button">New cache</a>
+
+{% endblock %} 

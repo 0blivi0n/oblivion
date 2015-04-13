@@ -1,0 +1,40 @@
+{% extends "obv_layout.dtl" %}
+
+{% block content %}
+	{% for node in nodes %}
+		<div class="panel {% if node.online %}panel-default{% else %}panel-warning{% endif %}">
+			<div class="panel-heading">
+				<h3 class="panel-title">{{node.node}}</h3>
+			</div>
+			<div class="panel-body">
+				<div class="row">
+					<div class="col-sm-12">
+						<label>Online:</label> {{node.online}}
+					</div>
+				</div>
+				{% if node.online %}
+				<div class="row">
+					<div class="col-sm-12">
+						<label>Server:</label> {{node.server}}:{{node.port}}
+					</div>
+				</div>	
+				<div class="row">
+					<div class="col-sm-12">
+						<label>Broadcast port:</label> {{node.broadcast}}
+					</div>
+				</div>
+				{% endif %}							
+			</div>
+			{% if not node.online %}
+			<ul class="list-group">
+				<li class="list-group-item text-right">
+					<a href="{% context %}node/remove">Remove</a>
+				</li>
+			</ul>
+			{% endif %}
+		</div>	
+	{% endfor %}
+
+	<a href="{% context %}node/add" class="btn btn-primary btn-lg btn-block" role="button">Add node</a>
+
+{% endblock %} 

@@ -1,0 +1,5 @@
+{% extends "obv_layout.dtl" %}
+
+{% block content %}
+	
+{% endblock %}
