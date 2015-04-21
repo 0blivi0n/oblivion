@@ -247,7 +247,8 @@ load_persistence() ->
 	case oblivion_conf:read() of
 		{ok, SavedConfig} ->
 			SavedNodes = oblivion_conf:nodes(SavedConfig),
-			RequestCount = request_config(SavedNodes),
+			ConnectionNodes = unique(SavedNodes, nodes()),
+			RequestCount = request_config(ConnectionNodes),
 			RemoteConfig = receive_config(RequestCount, SavedConfig),
 			Nodes = oblivion_conf:nodes(RemoteConfig, import),
 			columbo:add_nodes(Nodes),
@@ -257,6 +258,13 @@ load_persistence() ->
 				end, Caches),
 			oblivion_conf:write(Nodes, Caches);
 		{error, Reason} -> {error, Reason}
+	end.
+
+unique([], Nodes) -> Nodes;
+unique([H|T], Nodes) ->
+	case lists:member(H, T) of
+		true -> unique(T, Nodes);
+		false -> unique(T, [H|Nodes])
 	end.
 
 request_config([]) -> 0;

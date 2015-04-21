@@ -1,5 +1,21 @@
 {% extends "obv_layout.dtl" %}
 
+{% block header %}cluster / add{% endblock %}
+
 {% block content %}
-	
+
+<div class="well">
+	<form class="form" role="form" action="{% context %}node/add" method="POST">
+		<div class="form-group">
+			<label for="name">Node name</label>
+			<input type="text" class="form-control input-lg" id="name" name="name" placeholder="Enter node name">
+		</div>
+
+		<div class="form-group">
+			<a class="btn btn-default" href="{% context %}node/list" role="button">Cancel</a>
+			<button type="submit" class="btn btn-primary">Add node</button>
+		</div> 				
+	</form>	
+</div> 	
+
 {% endblock %}

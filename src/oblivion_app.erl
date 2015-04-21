@@ -35,18 +35,18 @@ start_webserver() ->
 	{ok, ServerID} = kill_bill:config_server(ServerConfig),
 	
 	{ok, AppName} = application:get_application(),
-	WebAppConfig = {webapp_config, oblivion_web,
+	RootConfig = {webapp_config, oblivion_web,
 			[{context, "/"},
 				{action, [
-						{oblivion_filter, [{"api", oblivion_rest}]},
-						{"/", oblivion_admin}
+						{"/", oblivion_admin},
+						{oblivion_filter, [{"api", oblivion_rest}]}
 						]},
 				{static, [
 						{path, "static"},
 						{priv_dir, AppName, "www"}
 						]},			 
 				{session_timeout, none}]},
-	ok = kill_bill:deploy(ServerID, WebAppConfig),
+	ok = kill_bill:deploy(ServerID, RootConfig),
 	
 	ok = kill_bill:start_server(ServerID),
 	ok.

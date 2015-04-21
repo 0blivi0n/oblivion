@@ -7,3 +7,14 @@
 body {
 	padding-top: 50px;
 }
+
+.panel .list-group-item {
+	padding-top: 4px;
+	padding-bottom: 4px;
+	padding-right: 4px;
+}
+
+.list-group-item .btn{
+	padding-top: 3px;
+	padding-bottom: 3px;
+}

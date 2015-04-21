@@ -1,5 +1,7 @@
 {% extends "obv_layout.dtl" %}
 
+{% block header %}cluster / list{% endblock %}
+
 {% block content %}
 	{% for node in nodes %}
 		<div class="panel {% if node.online %}panel-default{% else %}panel-warning{% endif %}">
@@ -28,7 +30,7 @@
 			{% if not node.online %}
 			<ul class="list-group">
 				<li class="list-group-item text-right">
-					<a href="{% context %}node/remove">Remove</a>
+					<a class="btn btn-warning" href="{% context %}node/{{node.node}}/remove" role="button">Remove</a>
 				</li>
 			</ul>
 			{% endif %}

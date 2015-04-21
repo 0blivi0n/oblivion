@@ -20,7 +20,7 @@
 	{modules, [
 	]},
 	{registered, [
-		oblivion
+		oblivion_server
 	]},
 	{applications, [
 		kernel,

@@ -1,0 +1,22 @@
+{% extends "obv_layout.dtl" %}
+
+{% block header %}caches / flush{% endblock %}
+
+{% block content %}
+
+<div class="alert alert-warning" role="alert">
+	<strong>Flush cache: {{cache}}</strong>
+	<br>
+	<br>
+	<p>Using this option you can delete all elements from the cache.</p>
+	<br>
+	<form class="form" role="form" action="{% context %}cache/flush" method="POST">
+		<input type="hidden" name="cache" value="{{cache}}">
+		<div class="form-group">
+			<a class="btn btn-default" href="{% context %}cache/list" role="button">Cancel</a>
+			<button type="submit" class="btn btn-warning">Flush</button>
+		</div> 	
+	</form>
+</div>	
+
+{% endblock %}

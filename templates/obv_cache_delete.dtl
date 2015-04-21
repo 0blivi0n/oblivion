@@ -1,0 +1,20 @@
+{% extends "obv_layout.dtl" %}
+
+{% block header %}caches / delete{% endblock %}
+
+{% block content %}
+<div class="alert alert-danger" role="alert">
+	<strong>Delete cache: {{cache}}</strong>
+	<br>
+	<br>
+	<p>Using this option you will delete the cache, this operation can't be undone.</p>
+	<br>
+	<form class="form" role="form" action="{% context %}cache/delete" method="POST">
+		<input type="hidden" name="cache" value="{{cache}}">
+		<div class="form-group">
+			<a class="btn btn-default" href="{% context %}cache/list" role="button">Cancel</a>
+			<button type="submit" class="btn btn-danger">Delete</button>
+		</div> 	
+	</form>
+</div>	
+{% endblock %}
