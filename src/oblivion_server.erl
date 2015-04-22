@@ -21,7 +21,12 @@
 
 -define(SERVER, {local, ?MODULE}).
 
--define(SYNC_TIMEOUT, 5000).
+-define(SYNC_TIMEOUT, 2000).
+
+-define(BASIC_CACHE_PROPS, [
+		{cluster_nodes, ?CLUSTER_NODES_ALL},
+		{sync_mode, ?FULL_SYNC_MODE}
+		]).
 
 %% ====================================================================
 %% API functions
@@ -231,13 +236,18 @@ validate_node(Node) ->
 	end.
 
 cache_setup(CacheName, Options) ->
-	Config = lists:keystore(cluster_nodes, 1, Options, {cluster_nodes, ?CLUSTER_NODES_ALL}),
+	Config = set(Options, ?BASIC_CACHE_PROPS),
 	Config1 = case lists:keyfind(max_age, 1, Config) of
 		false -> Config;
 		{_, ?NO_MAX_AGE} -> Config;
-		_ -> lists:keystore(purge_interval, 1, Options, {purge_interval, 60})
+		_ -> lists:keystore(purge_interval, 1, Config, {purge_interval, 60})
 	end,
 	gibreel:create_cache(CacheName, Config1).
+
+set(PropList, []) -> PropList;
+set(PropList, [H={Key,_}|T]) ->
+	PropList1 = lists:keystore(Key, 1, PropList, H),
+	set(PropList1, T).
 
 notify(Msg, Node) -> {?MODULE, Node} ! Msg.
 

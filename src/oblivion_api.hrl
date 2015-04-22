@@ -16,7 +16,6 @@
 
 -define(KEY_MAX_AGE, <<"maxAge">>).
 -define(KEY_MAX_SIZE, <<"maxSize">>).
--define(KEY_STARTUP_SYNC, <<"synchronizeOnStartup">>).
 
 -define(KEY_NODE, <<"node">>).
 -define(KEY_VERSION, <<"version">>).

@@ -167,8 +167,6 @@ convert_to_gibreel(Options) -> convert_to_gibreel(Options, []).
 
 convert_to_gibreel([{?KEY_MAX_AGE, Value}|T], Output) -> convert_to_gibreel(T, [{max_age, Value}|Output]);
 convert_to_gibreel([{?KEY_MAX_SIZE, Value}|T], Output) -> convert_to_gibreel(T, [{max_size, Value}|Output]);
-convert_to_gibreel([{?KEY_STARTUP_SYNC, true}|T], Output) -> convert_to_gibreel(T, [{sync_mode, ?FULL_SYNC_MODE}|Output]);
-convert_to_gibreel([{?KEY_STARTUP_SYNC, false}|T], Output) -> convert_to_gibreel(T, [{sync_mode, ?LAZY_SYNC_MODE}|Output]);
 convert_to_gibreel([_|T], Output) -> convert_to_gibreel(T, Output);
 convert_to_gibreel([], Output) -> Output.
 
@@ -177,7 +175,5 @@ convert_from_gibreel(Options) ->
 			({max_age, Value}) -> {true, {?KEY_MAX_AGE, Value}};
 			({max_size, ?NO_MAX_SIZE}) -> false;
 			({max_size, Value}) -> {true, {?KEY_MAX_SIZE, Value}};
-			({sync_mode, ?LAZY_SYNC_MODE}) -> {true, {?KEY_STARTUP_SYNC, false}};
-			({sync_mode, ?FULL_SYNC_MODE}) -> {true, {?KEY_STARTUP_SYNC, true}};
 			(_) -> false
 		end, Options).
