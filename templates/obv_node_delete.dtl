@@ -10,11 +10,12 @@
 	<p>Using this option you will remove the node from the cluster, this operation can't be undone.</p>
 	<br>
 	<form class="form" role="form" action="{% context %}node/remove" method="POST">
-		<input type="hidden" name="cache" value="{{node}}">
+		<input type="hidden" name="node" value="{{node}}">
 		<div class="form-group">
 			<a class="btn btn-default" href="{% context %}node/list" role="button">Cancel</a>
 			<button type="submit" class="btn btn-warning">Remove</button>
-		</div> 	
+		</div>
 	</form>
-</div>	
+</div>
 {% endblock %}
+

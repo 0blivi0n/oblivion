@@ -8,51 +8,35 @@
 	<form class="form" role="form" action="{% context %}cache/create" method="POST">
 		<div class="form-group">
 			<label for="name">Cache name</label>
-			<input type="text" class="form-control input-lg" id="name" name="name" placeholder="Enter cache name">
+			<input type="text" class="form-control input-lg" id="name" name="name" placeholder="Enter cache name" value="{{name}}">
 		</div>
 
 		<div class="form-group">
 			<label for="maxSize">Max size</label>
-			<input type="text" class="form-control" id="maxSize" name="maxSize" placeholder="Enter the cache max size">
+			<input type="text" class="form-control" id="maxSize" name="maxSize" placeholder="Enter the cache max size" value="{{maxSize}}">
 			<div class="checkbox">
 				<label>
 					<input type="checkbox" id="noMaxSize"> No size limit
 				</label>
-			</div>	
+			</div>
 		</div>
 
 		<div class="form-group">
 			<label for="maxAge">Max Age</label>
-			<input type="text" class="form-control" id="maxAge" name="maxAge" placeholder="Enter the cache expiration in seconds">
+			<input type="text" class="form-control" id="maxAge" name="maxAge" placeholder="Enter the cache expiration in seconds" value="{{maxAge}}">
 			<div class="checkbox">
 				<label>
 					<input type="checkbox" id="noMaxAge"> Cached elements never expire
 				</label>
-			</div>	
-		</div>  
-
-		<div class="form-group">
-			<label for="synchronizeOnStartup">Synchronize on startup</label>
-			<div class="radio">
-				<label>
-					<input type="radio" name="synchronizeOnStartup" id="synchronizeOnStartupTrue" value="true" checked>
-					Synchronize on startup
-				</label>
 			</div>
-			<div class="radio">
-				<label>
-					<input type="radio" name="synchronizeOnStartup" id="synchronizeOnStartupFalse" value="false">
-					Don't synchronize on startup
-				</label>
-			</div>
-		</div> 			
+		</div>
 
 		<div class="form-group">
 			<a class="btn btn-default" href="{% context %}cache/list" role="button">Cancel</a>
 			<button type="submit" class="btn btn-primary">Create cache</button>
-		</div> 				
-	</form>	
-</div> 
+		</div>
+	</form>
+</div>
 
 <script>
 $(document).ready(function() {
@@ -63,7 +47,7 @@ $(document).ready(function() {
 		if (noMaxSize) {
 			$('#maxSize').val("");
 		}
-	});	
+	});
 
 	$('#noMaxAge').change(function() {
 		var noMaxAge = $('#noMaxAge').is(':checked');
@@ -72,7 +56,8 @@ $(document).ready(function() {
 		if (noMaxAge) {
 			$('#maxAge').val("");
 		}
-	});			
+	});
 })
 </script>
 {% endblock %}
+
