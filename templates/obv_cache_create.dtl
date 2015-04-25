@@ -13,20 +13,20 @@
 
 		<div class="form-group">
 			<label for="maxSize">Max size</label>
-			<input type="text" class="form-control" id="maxSize" name="maxSize" placeholder="Enter the cache max size" value="{{maxSize}}">
+			<input type="text" class="form-control" id="maxSize" name="maxSize" placeholder="Enter the cache max size" value="{{maxSize}}"{% if noMaxSize %} disabled{% endif %}>
 			<div class="checkbox">
 				<label>
-					<input type="checkbox" id="noMaxSize"> No size limit
+					<input type="checkbox" id="noMaxSize" name="noMaxSize" value="{{noMaxSize}}" {% if noMaxSize %} checked{% endif %}> No size limit
 				</label>
 			</div>
 		</div>
 
 		<div class="form-group">
 			<label for="maxAge">Max Age</label>
-			<input type="text" class="form-control" id="maxAge" name="maxAge" placeholder="Enter the cache expiration in seconds" value="{{maxAge}}">
+			<input type="text" class="form-control" id="maxAge" name="maxAge" placeholder="Enter the cache expiration in seconds" value="{{maxAge}}"{% if noMaxAge %} disabled{% endif %}>
 			<div class="checkbox">
 				<label>
-					<input type="checkbox" id="noMaxAge"> Cached elements never expire
+					<input type="checkbox" id="noMaxAge" name="noMaxAge" value="{{noMaxAge}}"{% if noMaxAge %} checked{% endif %}> Cached elements never expire
 				</label>
 			</div>
 		</div>

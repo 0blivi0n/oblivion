@@ -76,11 +76,10 @@ caches(Include, Sort) ->
 	end,
 	FunName = fun(Cache) ->
 			Cache2 = atom_to_binary(Cache, utf8),
-			case re:run(Cache2, "^obv_") of
-				{match, _Captured} -> 
-					<<"obv_", CacheName/binary>> = Cache2,
-					{ok, CacheName};
-				nomatch -> ignore
+			<<Prefix:4/binary, CacheName/binary>> = Cache2,
+			case Prefix of
+				?CACHENAME_PREFIX -> {ok, CacheName};
+				_ -> ignore
 			end					  
 	end,
 	lists:filtermap(fun(Cache) -> 			 
@@ -157,7 +156,7 @@ delete_node(Node) -> oblivion_server:delete_node(Node).
 %% ====================================================================
 
 cache_name(CacheName) -> 
-	Cache = <<"obv_", CacheName/binary>>,
+	Cache = <<?CACHENAME_PREFIX/binary, CacheName/binary>>,
 	binary_to_atom(Cache, utf8).
 
 sort(List, false) -> List;

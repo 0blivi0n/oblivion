@@ -49,24 +49,33 @@
 -export([handle/3]).
 
 %% Index
-handle(<<"GET">>, [], Req) -> cache_list(Req, ?NO_ALERTS);
+handle(<<"GET">>, [], Req) -> 
+	cache_list(Req, ?NO_ALERTS);
 
 %% Cache
-handle(<<"GET">>, [<<"cache">>, <<"list">>], Req) -> cache_list(Req, ?NO_ALERTS);
+handle(<<"GET">>, [<<"cache">>, <<"list">>], Req) -> 
+	cache_list(Req, ?NO_ALERTS);
 
-handle(<<"GET">>, [<<"cache">>, <<"create">>], Req) -> cache_create(Req, ?NO_ALERTS, ?NO_ARGS);
+handle(<<"GET">>, [<<"cache">>, <<"create">>], Req) -> 
+	Args = [
+			{<<"noMaxSize">>, true},
+			{<<"noMaxAge">>, true}
+			],
+	cache_create(Req, ?NO_ALERTS, Args);
 
 handle(<<"POST">>, [<<"cache">>, <<"create">>], Req) ->
 	{Args, Req1} = kb_action_helper:get_args(Req),
-	case get_create_cache_parameters(Args) of
-		{ok, {CacheName, Options}} ->
+	case create_cache_parameters(Args) of
+		{ok, CacheName, Options} ->
 			case oblivion_api:create(CacheName, Options) of
-				ok -> cache_list(Req, [?ALERT_SUCCESS(<<"Cache ", CacheName/binary, " created.">>)]);
+				ok ->
+					Alert = ?ALERT_SUCCESS(<<"Cache '", CacheName/binary, "' created.">>),
+					cache_list(Req, [Alert]);
 				{error, ErrorType} ->
 					ErrorMessage = case ErrorType of
-							duplicated -> <<"Cache exists.">>;
-							Other -> Other
-						end,
+						duplicated -> <<"Duplicated cache name.">>;
+						Other -> Other
+					end,
 					cache_create(Req1, [?ALERT_DANGER(ErrorMessage)], Args)
 			end;
 		{error, Errors} ->
@@ -80,14 +89,18 @@ handle(<<"GET">>, [<<"cache">>, CacheName, <<"delete">>], Req) ->
 
 handle(<<"POST">>, [<<"cache">>, <<"delete">>], Req) ->
 	{Args, Req1} = kb_action_helper:get_args(Req),
-	case get_mandatory_value(Args, <<"cache">>) of
-		{ok, CacheName} ->
+	Alert = case lists:keyfind(<<"cache">>, 1, Args) of
+		{_, CacheName} ->
 			case oblivion_api:drop(CacheName) of
-				{error, _Reason} -> cache_delete(Req1, [?ALERT_DANGER(<<"Cache was not deleted.">>)], Args);
-				_ -> cache_list(Req1, [?ALERT_SUCCESS(<<"Cache ", CacheName/binary, " was deleted.">>)])
+				ok -> 
+					?ALERT_SUCCESS(<<"Cache '", CacheName/binary, "' was deleted.">>);
+				_ -> 
+					?ALERT_DANGER(<<"A technical problem prevented the execution of the operation with success.">>)
 			end;
-		{error, _Reason} -> cache_delete(Req1, [?ALERT_WARNING(<<"Missing cache parameter.">>)], Args)
-	end;
+		false -> 
+			?ALERT_WARNING(<<"Invalid request! Please choose the cache to delete from the cache list.">>)
+	end,
+	cache_list(Req1, [Alert]);
 
 handle(<<"GET">>, [<<"cache">>, CacheName, <<"flush">>], Req) ->
 	Args = [{cache, CacheName}],
@@ -95,29 +108,44 @@ handle(<<"GET">>, [<<"cache">>, CacheName, <<"flush">>], Req) ->
 
 handle(<<"POST">>, [<<"cache">>, <<"flush">>], Req) ->
 	{Args, Req1} = kb_action_helper:get_args(Req),
-	case get_mandatory_value(Args, <<"cache">>) of
-		{ok, CacheName} ->
+	Alert = case lists:keyfind(<<"cache">>, 1, Args) of
+		{_, CacheName} ->
 			case oblivion_api:flush(CacheName) of
-				ok -> cache_list(Req, [?ALERT_SUCCESS(<<"Cache ", CacheName/binary, " was flushed.">>)]);
-				no_cache -> cache_flush(Req1, [?ALERT_DANGER(<<"Cache does not exist.">>)], Args)
+				ok -> 
+					?ALERT_INFO(<<"The eviction of all elements from cache '", CacheName/binary, "' was started!">>);
+				no_cache -> 
+					?ALERT_WARNING(<<"The cache '", CacheName/binary, "' was deleted!">>)
 			end;
-		{error, _Reason} -> cache_flush(Req1, [?ALERT_WARNING(<<"Missing cache parameter.">>)], Args)
-	end;
+		false -> 
+			?ALERT_WARNING(<<"Invalid request! Please choose the cache to flush from the cache list.">>)
+	end,
+	cache_list(Req1, [Alert]);
 
 %% Cluster
-handle(<<"GET">>, [<<"node">>, <<"list">>], Req) -> node_list(Req, ?NO_ALERTS);
+handle(<<"GET">>, [<<"node">>, <<"list">>], Req) -> 
+	node_list(Req, ?NO_ALERTS);
 
-handle(<<"GET">>, [<<"node">>, <<"add">>], Req) -> node_add(Req, ?NO_ALERTS, ?NO_ARGS);
+handle(<<"GET">>, [<<"node">>, <<"add">>], Req) -> 
+	node_add(Req, ?NO_ALERTS, ?NO_ARGS);
 
 handle(<<"POST">>, [<<"node">>, <<"add">>], Req) ->
 	{Args, Req1} = kb_action_helper:get_args(Req),
-	case get_mandatory_value(Args, <<"name">>) of
-		{ok, NodeName} ->
+	case lists:keyfind(<<"name">>, 1, Args) of
+		{_, <<>>} ->
+			Alert = ?ALERT_WARNING(<<"Invalid request! Please provide a valid node name (format: name@server).">>),
+			node_add(Req1, [Alert], Args);
+		{_, NodeName} ->
 			case oblivion_api:add_node(NodeName) of
-				ok -> node_list(Req1, [?ALERT_SUCCESS(<<"Node ", NodeName/binary, " added.">>)]);
-				{error, Reason} -> node_add(Req1, [?ALERT_DANGER(Reason)], Args)
+				ok -> 
+					Alert = ?ALERT_SUCCESS(<<"Node '", NodeName/binary, "' added.">>),
+					node_list(Req1, [Alert]);
+				{error, Reason} -> 
+					Alert = ?ALERT_DANGER(Reason),
+					node_add(Req1, [Alert], Args)
 			end;
-		{error, _Reason} -> node_add(Req1, [?ALERT_WARNING(<<"Node name can not be empty.">>)], Args)
+		false ->
+			Alert = ?ALERT_WARNING(<<"Invalid request! Please provide a valid node name (format: name@server).">>),
+			node_add(Req1, [Alert], Args)
 	end;
 
 handle(<<"GET">>, [<<"node">>, NodeName, <<"remove">>], Req) ->
@@ -126,21 +154,26 @@ handle(<<"GET">>, [<<"node">>, NodeName, <<"remove">>], Req) ->
 
 handle(<<"POST">>, [<<"node">>, <<"remove">>], Req) ->
 	{Args, Req1} = kb_action_helper:get_args(Req),
-	case get_mandatory_value(Args, <<"node">>) of
-		{ok, NodeName} ->
+	Alert = case lists:keyfind(<<"name">>, 1, Args) of
+		{_, NodeName} ->
 			case oblivion_api:delete_node(NodeName) of
-				ok -> node_list(Req1, [?ALERT_SUCCESS(<<"Node ", NodeName/binary, " deleted.">>)]);
-				{error, Reason} -> node_remove(Req1, [?ALERT_DANGER(Reason)], Args)
+				ok -> 
+					?ALERT_SUCCESS(<<"Node '", NodeName/binary, "' removed.">>);
+				_ -> 
+					?ALERT_DANGER(<<"A technical problem prevented the execution of the operation with success.">>)
 			end;
-		{error, _Reason} -> node_remove(Req1, [?ALERT_WARNING(<<"Node name can not be empty.">>)], Args)
-	end;
+		false -> 
+			?ALERT_WARNING(<<"Invalid request! Please choose the node to remove from the node list.">>)
+	end,
+	node_list(Req1, [Alert]);
 
 %% About
 handle(<<"GET">>, [<<"about">>], Req) ->
-	{dtl, obv_about_dtl, ?ARGS(?MENU_ABOUT, ?NO_ALERTS, []), Req};
+	{dtl, obv_about_dtl, ?ARGS(?MENU_ABOUT, ?NO_ALERTS, ?NO_ARGS), Req};
 
 %% Fail
-handle(_Method, _Path, Req) -> {raw, 404, [], "Not found!", Req}.
+handle(_Method, _Path, Req) -> 
+	{raw, 404, [], "Not found!", Req}.
 
 %% ====================================================================
 %% Internal functions
@@ -171,36 +204,70 @@ node_add(Req, Alerts, Args) ->
 node_remove(Req, Alerts, Args) ->
 	{dtl, obv_node_delete_dtl, ?ARGS(?MENU_NODE, Alerts, Args), Req}.
 
-get_create_cache_parameters(Args) -> get_create_cache_parameters(Args, [], {undefined, []}).
-get_create_cache_parameters([], [], Parameters) -> {ok, Parameters};
-get_create_cache_parameters([], Errors, _Parameters) -> {error, lists:reverse(Errors)};
-get_create_cache_parameters([{<<"name">>, <<>>}|Tail], Errors, Parameters) ->
-	get_create_cache_parameters(Tail, [<<"Cache name can not be empty.">>|Errors], Parameters);
-get_create_cache_parameters([{<<"name">>, NewCacheName}|Tail], Errors, Parameters={_OldCacheName, Options}) ->
-	try
-		_NameAsAtom = binary_to_atom(NewCacheName, utf8),
-		get_create_cache_parameters(Tail, Errors, {NewCacheName, Options})
-	catch
-		error: badarg -> get_create_cache_parameters(Tail, [<<"Cache name can not be empty.">>|Errors], Parameters)
-	end;
-get_create_cache_parameters([{_Key, <<>>}|Tail], Errors, Parameters) ->
-	get_create_cache_parameters(Tail, Errors, Parameters);
-get_create_cache_parameters([{<<"maxSize">>, MaxSize}|Tail], Errors, Parameters) ->
-	get_create_cache_integer_parameter(?KEY_MAX_SIZE, MaxSize, <<"Max Size">>, Tail, Errors, Parameters);
-get_create_cache_parameters([{<<"maxAge">>, MaxAge}|Tail], Errors, Parameters) ->
-	get_create_cache_integer_parameter(?KEY_MAX_AGE, MaxAge, <<"Max Age">>, Tail, Errors, Parameters).
-
-get_create_cache_integer_parameter(KeyName, BinValue, LabelName, RemainingArgs, Errors, Parameters={CacheName, Options}) ->
-	try
-		IntegerValue = binary_to_integer(BinValue),
-		get_create_cache_parameters(RemainingArgs, Errors, {CacheName, [{KeyName, IntegerValue}|Options]})
-	catch
-		error: badarg -> get_create_cache_parameters(RemainingArgs, [<<LabelName/binary, " has to be an integer.">>|Errors], Parameters)
+create_cache_parameters(Args) ->
+	ParamFun = [
+			fun cache_name/1,
+			fun max_size/1,
+			fun max_age/1
+			],
+	Results = lists:map(fun(Fun) -> Fun(Args) end, ParamFun),
+	{OkList, ErrorList} = lists:partition(fun({error, _}) -> false;
+				(_) -> true 
+			end, Results),
+	case ErrorList of
+		[] -> 
+			{_, CacheName} = lists:keyfind(<<"name">>, 1, OkList),
+			Options = lists:filtermap(fun({_, no_value}) -> false;
+						({<<"maxSize">>, MaxSize}) -> {true, {?KEY_MAX_SIZE, MaxSize}};
+						({<<"maxAge">>, MaxAge}) -> {true, {?KEY_MAX_AGE, MaxAge}};
+						(_) -> false 
+					end, OkList),
+			{ok, CacheName, Options};
+		_ ->
+			Errors = lists:map(fun({error, Error}) -> Error end, ErrorList),
+			{error, Errors}
 	end.
 
-get_mandatory_value(Args, Key) ->
-	case proplists:get_value(Key, Args) of
-		undefined -> {error, missing};
-		<<>> -> {error, empty};
-		Value -> {ok, Value}
+cache_name(Args) ->
+	case lists:keyfind(<<"name">>, 1, Args) of
+		false -> {error, <<"Invalid request! Please provide a name.">>};
+		{_, <<>>} -> {error, <<"Invalid request! Please provide a name.">>};
+		{_, CacheName} -> {<<"name">>, CacheName}
+	end.
+
+max_size(Args) ->
+	case lists:keyfind(<<"noMaxSize">>, 1, Args) of
+		false ->
+			case lists:keyfind(<<"maxSize">>, 1, Args) of
+				false -> {error, <<"Invalid request! Please provide a value for 'Max size'.">>};
+				{_, <<>>} -> {error, <<"Invalid request! Please provide a value for 'Max size'.">>};
+				{_, MaxSize} ->
+					case integer(MaxSize) of
+						error -> {error, <<"Invalid request! The field 'Max size' must be a valid integer.">>};
+						Value -> {<<"maxSize">>, Value}
+					end
+			end;
+		_ -> {ok, no_value}
+	end.
+
+max_age(Args) ->
+	case lists:keyfind(<<"noMaxAge">>, 1, Args) of
+		false ->
+			case lists:keyfind(<<"maxAge">>, 1, Args) of
+				false -> {error, <<"Invalid request! Please provide a value for 'Max age'.">>};
+				{_, <<>>} -> {error, <<"Invalid request! Please provide a value for 'Max age'.">>};
+				{_, MaxAge} ->
+					case integer(MaxAge) of
+						error -> {error, <<"Invalid request! The field 'Max age' must be a valid integer.">>};
+						Value -> {<<"maxAge">>, Value}
+					end
+			end;
+		_ -> {ok, no_value}
+	end.
+
+integer(Value) ->
+	List = binary_to_list(Value),
+	case string:to_integer(List) of
+		{Int, []} -> Int;
+		_ -> error
 	end.

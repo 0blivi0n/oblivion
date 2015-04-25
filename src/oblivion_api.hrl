@@ -27,3 +27,5 @@
 -define(KEY_PORT, <<"port">>).
 -define(KEY_BROADCAST, <<"broadcast">>).
 -define(KEY_ONLINE, <<"online">>).
+
+-define(CACHENAME_PREFIX, <<"obv_">>).

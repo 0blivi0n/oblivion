@@ -10,20 +10,16 @@
 		<h3 class="panel-title">{{cache.cache}}</h3>
 	</div>
 	<div class="panel-body">
-		{% if cache.config.maxSize %}
 		<div class="row">
 			<div class="col-sm-12">
-				<label>Maximum size:</label> {{cache.config.maxSize}}
+				<label>Maximum size:</label> {% if cache.config.maxSize %}{{cache.config.maxSize}}{% else %}No size limit{% endif %}
 			</div>
 		</div>
-		{% endif %}
-		{% if cache.config.maxAge %}
 		<div class="row">
 			<div class="col-sm-12">
-				<label>Expire after:</label> {{cache.config.maxAge}} seconds
+				<label>Expire after:</label> {% if cache.config.maxAge %}{{cache.config.maxAge}} seconds{% else %}Cached elements never expire{% endif %}
 			</div>
 		</div>
-		{% endif %}
 	</div>
 	<ul class="list-group">
 		<li class="list-group-item text-right">
