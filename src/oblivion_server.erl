@@ -308,31 +308,35 @@ get_host_ip() ->
 							io_lib:format("~b.~b.~b.~b", [Ip1, Ip2, Ip3, Ip4]);
 						{Ip1, Ip2, Ip3, Ip4, Ip5, Ip6, Ip7, Ip8} -> 
 							io_lib:format("~.16b:~.16b:~.16b:~.16b:~.16b:~.16b:~.16b:~.16b", [Ip1, Ip2, Ip3, Ip4, Ip5, Ip6, Ip7, Ip8]);
-						_ -> Localhost
+						undefined -> Localhost
 					end;
 				_ -> Localhost
 			end;		
 		{ok, PublicIP} -> PublicIP
 	end.
 
-find_address([]) -> none;
+find_address([]) -> undefined;
 find_address([H|T]) ->
 	{_, Props} = H,
 	Flags = proplists:get_value(flags, Props, []),
 	Up = lists:member(up, Flags),
 	LoopBack =  lists:member(loopback, Flags),
 	if Up =:= true, LoopBack =:= false ->
-			Ip4List = lists:filter(fun({addr, Ip}) when is_tuple(Ip) andalso tuple_size(Ip) =:= 4 -> true;
-						(_) -> false end, Props),
-			case Ip4List of
-				[] ->
-					Ip6List = lists:filter(fun({addr, Ip}) when is_tuple(Ip) andalso tuple_size(Ip) =:= 8 -> true;
-								(_) -> false end, Props),
-					case Ip6List of
-						[] -> find_address(T);
-						[{_, Ip6}] -> Ip6
+			case addr(Props, 4) of
+				undefined ->
+					case addr(Props, 8) of
+						undefined -> find_address(T);
+						Ip6 -> Ip6
 					end;
-				[{_, Ip4}] -> Ip4
+				Ip4 -> Ip4
 			end;
 		true -> find_address(T)
+	end.
+
+addr(Props, Size) ->
+	List = lists:filter(fun({addr, Ip}) when is_tuple(Ip) andalso tuple_size(Ip) =:= Size -> true;
+				(_) -> false end, Props),
+	case List of 
+		[] -> undefined;
+		[{_, Ip}] -> Ip
 	end.
