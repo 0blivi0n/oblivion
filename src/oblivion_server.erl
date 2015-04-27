@@ -292,7 +292,47 @@ receive_config(_Count, DefaultConfig) ->
 	end.
 
 get_node_port() ->
-	Server = net_adm:localhost(),
+	Server = get_host_ip(),
 	{ok, Port} = application:get_env(oblivion, oblivion_http_port),
 	{ok, Broadcast} = application:get_env(columbo, udp_port),
 	{Server, Port, Broadcast}.
+
+get_host_ip() ->
+	Localhost = net_adm:localhost(),
+	case application:get_env(oblivion, public_ip) of
+		undefined -> 
+			case inet:getifaddrs() of
+				{ok, NetConfig} -> 
+					case find_address(NetConfig) of
+						{Ip1, Ip2, Ip3, Ip4} -> 
+							io_lib:format("~b.~b.~b.~b", [Ip1, Ip2, Ip3, Ip4]);
+						{Ip1, Ip2, Ip3, Ip4, Ip5, Ip6, Ip7, Ip8} -> 
+							io_lib:format("~.16b:~.16b:~.16b:~.16b:~.16b:~.16b:~.16b:~.16b", [Ip1, Ip2, Ip3, Ip4, Ip5, Ip6, Ip7, Ip8]);
+						_ -> Localhost
+					end;
+				_ -> Localhost
+			end;		
+		{ok, PublicIP} -> PublicIP
+	end.
+
+find_address([]) -> none;
+find_address([H|T]) ->
+	{_, Props} = H,
+	Flags = proplists:get_value(flags, Props, []),
+	Up = lists:member(up, Flags),
+	LoopBack =  lists:member(loopback, Flags),
+	if Up =:= true, LoopBack =:= false ->
+			Ip4List = lists:filter(fun({addr, Ip}) when is_tuple(Ip) andalso tuple_size(Ip) =:= 4 -> true;
+						(_) -> false end, Props),
+			case Ip4List of
+				[] ->
+					Ip6List = lists:filter(fun({addr, Ip}) when is_tuple(Ip) andalso tuple_size(Ip) =:= 8 -> true;
+								(_) -> false end, Props),
+					case Ip6List of
+						[] -> find_address(T);
+						[Ip6] -> Ip6
+					end;
+				[Ip4] -> Ip4
+			end;
+		true -> find_address(T)
+	end.
