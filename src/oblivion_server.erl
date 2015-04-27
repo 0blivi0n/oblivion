@@ -330,9 +330,9 @@ find_address([H|T]) ->
 								(_) -> false end, Props),
 					case Ip6List of
 						[] -> find_address(T);
-						[Ip6] -> Ip6
+						[{_, Ip6}] -> Ip6
 					end;
-				[Ip4] -> Ip4
+				[{_, Ip4}] -> Ip4
 			end;
 		true -> find_address(T)
 	end.
