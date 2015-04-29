@@ -76,16 +76,23 @@ handle(<<"DELETE">>, [<<"caches">>, CacheName, <<"keys">>, Key], Req) ->
 		ok -> success(200, ?OK, ?BASIC_HEADER_LIST, Req1)
 	end;
 
-%GET /caches/{cache}/keys[?sort=<true|false>] - get cache key list
+%GET /caches/{cache}/keys[?list=<true|false>[&sort=<true|false>]] - get size or cache key list
 handle(<<"GET">>, [<<"caches">>, CacheName, <<"keys">>], Req) ->
 	{Args, Req1} = kb_action_helper:get_args(Req),
-	Options = options(Args, [?SORT_TAG]),
-	Sort = option(?SORT_TAG, Options, false),
-	case oblivion_api:keys(CacheName, Sort) of
+	Options = options(Args, [?LIST_TAG, ?SORT_TAG]),
+	List = option(?LIST_TAG, Options, false),
+	Reply = case List of
+		true ->
+			Sort = option(?SORT_TAG, Options, false),
+			case oblivion_api:keys(CacheName, Sort) of
+				no_cache -> no_cache;
+				KeyList -> [{<<"keys">>, KeyList}]
+			end;
+		false -> oblivion_api:size(CacheName)
+	end,
+	case Reply of
 		no_cache -> cache_not_found(Req1);
-		KeyList ->
-			Reply = [{<<"keys">>, KeyList}],
-			success(200, Reply, ?BASIC_HEADER_LIST, Req1)
+		_ -> success(200, Reply, ?BASIC_HEADER_LIST, Req1)
 	end;
 
 %DELETE /caches/{cache}/keys - Delete all key from cache 
@@ -97,13 +104,14 @@ handle(<<"DELETE">>, [<<"caches">>, CacheName, <<"keys">>], Req) ->
 
 %% Cache management
 
-%GET /caches[?sort=<true|false>[&include_config=<true|false>]] - Return cache list 
+%GET /caches[?sort=<true|false>[&include_config=<true|false>[&include_size=<true|false>]]] - Return cache list 
 handle(<<"GET">>, [<<"caches">>], Req) ->
 	{Args, Req1} = kb_action_helper:get_args(Req),
-	Options = options(Args, [?SORT_TAG, ?INCLUDE_CONFIG_TAG]),
+	Options = options(Args, [?SORT_TAG, ?INCLUDE_CONFIG_TAG, ?INCLUDE_SIZE_TAG]),
 	Sort = option(?SORT_TAG, Options, false),
-	Include = option(?INCLUDE_CONFIG_TAG, Options, false),
-	Caches = oblivion_api:caches(Include, Sort),
+	IncludeConfig = option(?INCLUDE_CONFIG_TAG, Options, false),
+	IncludeSize = option(?INCLUDE_SIZE_TAG, Options, false),
+	Caches = oblivion_api:caches(IncludeConfig, IncludeSize, Sort),
 	Reply = [{<<"caches">>, Caches}],
 	success(200, Reply, ?BASIC_HEADER_LIST, Req1);
 
@@ -171,7 +179,11 @@ options(Args, Select) ->
 				({?SORT_TAG, <<"true">>}) -> {true, {?SORT_TAG, true}};
 				({?SORT_TAG, <<"false">>}) -> {true, {?SORT_TAG, false}};
 				({?INCLUDE_CONFIG_TAG, <<"true">>}) -> {true, {?INCLUDE_CONFIG_TAG, true}};
-				({?INCLUDE_CONFIG_TAG, <<"false">>}) -> {true, {?INCLUDE_CONFIG_TAG, false}};					   
+				({?INCLUDE_CONFIG_TAG, <<"false">>}) -> {true, {?INCLUDE_CONFIG_TAG, false}};				
+				({?INCLUDE_SIZE_TAG, <<"true">>}) -> {true, {?INCLUDE_SIZE_TAG, true}};
+				({?INCLUDE_SIZE_TAG, <<"false">>}) -> {true, {?INCLUDE_SIZE_TAG, false}};	
+				({?LIST_TAG, <<"true">>}) -> {true, {?LIST_TAG, true}};
+				({?LIST_TAG, <<"false">>}) -> {true, {?LIST_TAG, false}};									 								 	   
 				(_) -> false
 			end, Args),
 	lists:filter(fun({Key, _}) -> lists:member(Key, Select) end, Options).

@@ -22,6 +22,7 @@
 
 -define(KEY_CACHE, <<"cache">>).
 -define(KEY_CONFIG, <<"config">>).
+-define(KEY_SIZE, <<"size">>).
 
 -define(KEY_SERVER, <<"server">>).
 -define(KEY_PORT, <<"port">>).

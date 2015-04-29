@@ -180,7 +180,7 @@ handle(_Method, _Path, Req) ->
 %% ====================================================================
 
 cache_list(Req, Alerts) ->
-	CacheList = oblivion_api:caches(true, true),
+	CacheList = oblivion_api:caches(true, true, true),
 	Args = [{caches, CacheList}],
 	{dtl, obv_cache_list_dtl, ?ARGS(?MENU_CACHE, Alerts, Args), Req}.
 

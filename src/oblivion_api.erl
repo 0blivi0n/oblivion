@@ -24,8 +24,8 @@
 %% ====================================================================
 -export([system/0]).
 -export([get/2, put/4, version/2, delete/3]).
--export([keys/2, flush/1]).
--export([caches/2]).
+-export([keys/2, flush/1, size/1]).
+-export([caches/3]).
 -export([create/2, config/1, drop/1]).
 -export([nodes/1, node_list/0, online_node_list/0]).
 -export([add_node/1, delete_node/1]).
@@ -64,38 +64,47 @@ flush(CacheName) ->
 	Cache = cache_name(CacheName),
 	g_cache:flush(Cache).
 
-caches(Include, Sort) ->
+size(CacheName) ->
+	Cache = cache_name(CacheName),
+	g_cache:size(Cache).
+
+caches(IncludeConfig, IncludeSize, Sort) ->
 	CacheList = gibreel:list_caches(),
 	SortedCacheList = sort(CacheList, Sort),
 	FunConfig = fun(Cache, true) ->
 			case gibreel:cache_config(Cache) of
 				no_cache -> ignore;
-				Config -> {ok, convert_from_gibreel(Config)}
+				Config -> [{?KEY_CONFIG, convert_from_gibreel(Config)}]
 			end;
-		(_Cache, false) -> name
+		(_Cache, false) -> []
 	end,
+	FunSize = fun(Cache, true) ->
+			case g_cache:size(Cache) of
+				no_cache -> ignore;
+				Size -> [{?KEY_SIZE, Size}]
+			end;
+		(_Cache, false) -> []
+	end,					  
 	FunName = fun(Cache) ->
 			Cache2 = atom_to_binary(Cache, utf8),
 			<<Prefix:4/binary, CacheName/binary>> = Cache2,
 			case Prefix of
-				?CACHENAME_PREFIX -> {ok, CacheName};
+				?CACHENAME_PREFIX -> [{?KEY_CACHE, CacheName}];
 				_ -> ignore
 			end					  
 	end,
-	lists:filtermap(fun(Cache) -> 			 
+	lists:filtermap(fun(Cache) -> 	
 				case FunName(Cache) of
-					{ok, Name} ->
-						case FunConfig(Cache, Include) of
-							{ok, Config} ->
-								Reply = [
-										{?KEY_CACHE, Name},
-										{?KEY_CONFIG, Config}
-										],
-								{true, Reply};
+					ignore -> false;
+					NameParam -> 
+						case FunConfig(Cache, IncludeConfig) of
 							ignore -> false;
-							name -> {true, Name}
-						end;
-					ignore -> false
+							ConfigParam ->
+								case FunSize(Cache, IncludeSize) of
+									ignore -> false;
+									SizeParam -> {true, NameParam ++ ConfigParam ++ SizeParam}
+								end
+						end
 				end
 		end, SortedCacheList).	
 
