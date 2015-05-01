@@ -15,7 +15,7 @@
 %%
 
 {application, oblivion, [
-	{description, "0blivi0n-cache - The cure for oblivion"},
+	{description, "Distributed cache service for JSON documents"},
 	{vsn, "0.5.0"},
 	{modules, [
 	]},
