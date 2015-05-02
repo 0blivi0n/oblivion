@@ -156,7 +156,8 @@ handle(<<"GET">>, [<<"nodes">>], Req) ->
 handle(<<"PUT">>, [<<"nodes">>, Node], Req) ->
 	case oblivion_api:add_node(Node) of
 		{error, Reason} -> validation_error(Reason, Req);
-		ok -> success(202, ?OK, ?BASIC_HEADER_LIST, Req)
+		ok -> success(202, ?OK, ?BASIC_HEADER_LIST, Req);
+		duplicated -> duplicated_node(Req)
 	end;
 
 %DELETE /nodes/{node} - Delete node from cluster
@@ -202,6 +203,7 @@ key_not_found(Req) -> ?rest_error(?KEY_NOT_EXISTS_ERROR, Req).
 invalid_version(Req) -> ?rest_error(?INVALID_VERSION_ERROR, Req).
 invalid_json(Req) -> ?rest_error(?INVALID_JSON_ERROR, Req).
 duplicated_cache(Req) -> ?rest_error(?DUPLICATED_CACHE_ERROR, Req).
+duplicated_node(Req) -> ?rest_error(?DUPLICATED_NODE_ERROR, Req).
 
 validation_error(Reason, Req) when is_list(Reason) -> 
 	validation_error(list_to_binary(Reason), Req);

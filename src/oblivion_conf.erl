@@ -32,7 +32,7 @@
 -export([new/0]).
 -export([read/0, write/1, write/2, delete/0]).
 -export([nodes/1, nodes/2, caches/1]).
--export([add_node/2, delete_node/2, update_nodes/2]).
+-export([update_nodes/1]).
 -export([add_cache/3, delete_cache/2]).
 -export([empty/1]).
 
@@ -70,38 +70,24 @@ nodes(Nodes, export) -> Nodes.
 
 caches(?CONFIG_DATA(_, Caches)) -> Caches.
 
-add_node(Node, ?CONFIG_DATA(Nodes, Caches)) ->
-	Config = ?CONFIG_DATA([Node|Nodes], Caches),
-	case write(Config) of
-		ok -> {ok, Config};
-		{error, Reason} -> {error, Reason}
-	end.
-
-delete_node(Node, ?CONFIG_DATA(Nodes, Caches)) ->
-	Config = ?CONFIG_DATA(lists:delete(Node, Nodes), Caches),
-	case write(Config) of
-		ok -> {ok, Config};
-		{error, Reason} -> {error, Reason}
-	end.
-
-update_nodes(Nodes, ?CONFIG_DATA(_, Caches)) ->
-	Config = ?CONFIG_DATA(nodes(Nodes, import), Caches),
+update_nodes(?CONFIG_DATA(_, Caches)) ->
+	Config = ?CONFIG_DATA(columbo:known_nodes(), Caches),
 	case write(Config) of
 		ok -> {ok, Config};
 		{error, Reason} -> {error, Reason}
 	end.	
 
-add_cache(Cache, Options, ?CONFIG_DATA(Nodes, Caches)) ->
+add_cache(Cache, Options, ?CONFIG_DATA(_, Caches)) ->
 	Caches1 = lists:keystore(Cache, 1, Caches, ?CACHE_CONFIG(Cache, Options)),
-	Config = ?CONFIG_DATA(Nodes, Caches1),
+	Config = ?CONFIG_DATA(columbo:known_nodes(), Caches1),
 	case write(Config) of
 		ok -> {ok, Config};
 		{error, Reason} -> {error, Reason}
 	end.
 
-delete_cache(Cache, ?CONFIG_DATA(Nodes, Caches)) ->
+delete_cache(Cache, ?CONFIG_DATA(_, Caches)) ->
 	Caches1 = lists:keydelete(Cache, 1, Caches),
-	Config = ?CONFIG_DATA(Nodes, Caches1),
+	Config = ?CONFIG_DATA(columbo:known_nodes(), Caches1),
 	case write(Config) of
 		ok -> {ok, Config};
 		{error, Reason} -> {error, Reason}

@@ -69,7 +69,7 @@ handle(<<"POST">>, [<<"cache">>, <<"create">>], Req) ->
 		{ok, CacheName, Options} ->
 			case oblivion_api:create(CacheName, Options) of
 				ok ->
-					Alert = ?ALERT_SUCCESS(<<"Cache '", CacheName/binary, "' created.">>),
+					Alert = ?ALERT_SUCCESS(<<"Cache '", CacheName/binary, "' was created.">>),
 					cache_list(Req, [Alert]);
 				{error, ErrorType} ->
 					ErrorMessage = case ErrorType of
@@ -139,6 +139,9 @@ handle(<<"POST">>, [<<"node">>, <<"add">>], Req) ->
 				ok -> 
 					Alert = ?ALERT_SUCCESS(<<"Node '", NodeName/binary, "' added.">>),
 					node_list(Req1, [Alert]);
+				duplicated -> 
+					Alert = ?ALERT_WARNING(<<"Node '", NodeName/binary, "' was already part of the cluster.">>),
+					node_add(Req1, [Alert], Args);
 				{error, Reason} -> 
 					Alert = ?ALERT_DANGER(Reason),
 					node_add(Req1, [Alert], Args)

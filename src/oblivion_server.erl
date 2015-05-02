@@ -45,7 +45,7 @@ add_node(Node) ->
 		ok ->
 			case net_adm:ping(Node) of
 				pong -> gen_server:call(?MODULE, {add_node, Node});
-				pang -> {error, <<"Node not responding">>}
+				pang -> {error, <<"Node isn't responding">>}
 			end
 	end.
 
@@ -120,11 +120,11 @@ handle_call({delete_cache, CacheName}, _From, State=#state{config=Config}) ->
 handle_call({add_node, Node}, _From, State=#state{config=Config}) ->
 	Nodes = oblivion_conf:nodes(Config),
 	case lists:member(Node, [node(), Nodes]) of
-		true -> {reply, ok, State};
+		true -> {reply, duplicated, State};
 		false -> 
-			case oblivion_conf:add_node(Node, Config) of
+			columbo:add_node(Node),
+			case oblivion_conf:update_nodes(Config) of
 				{ok, Config1} ->
-					columbo:add_node(Node),
 					Nodes1 = oblivion_conf:nodes(Config1),
 					notify({nodes, oblivion_conf:nodes(Nodes1, export)}),
 					notify({startup, Config1}, Node),
@@ -137,9 +137,9 @@ handle_call({delete_node, Node}, _From, State=#state{config=Config}) ->
 	Nodes = oblivion_conf:nodes(Config),
 	case lists:member(Node, Nodes) of
 		true -> 
-			case oblivion_conf:delete_node(Node, Config) of
+			columbo:delete_node(Node),
+			case oblivion_conf:update_nodes(Config) of
 				{ok, Config1} ->
-					columbo:delete_node(Node),
 					Nodes1 = oblivion_conf:nodes(Config1),
 					notify({nodes, oblivion_conf:nodes(Nodes1, export)}),
 					{reply, ok, State#state{config=Config1}};
@@ -177,42 +177,46 @@ handle_info({delete_cache, CacheName}, State=#state{config=Config}) ->
 	end;
 
 handle_info({nodes, NewNodes}, State=#state{config=Config}) -> 
-	case oblivion_conf:update_nodes(NewNodes, Config) of
+	columbo:add_nodes(NewNodes),
+	case oblivion_conf:update_nodes(Config) of
 		{ok, Config1} ->
-			columbo:add_nodes(NewNodes),
-			KnownNodes = columbo:known_nodes(),
-			lists:foreach(fun(Node) ->
-						case lists:member(Node, NewNodes) of
-							true -> ok;
-							false -> columbo:delete_node(Node)
-						end
-				end, KnownNodes),
 			{noreply, State#state{config=Config1}};
 		{error, Reason} ->
 			error_logger:error_msg("~p: Error updating node configuration ~p: ~p\n", [?MODULE, NewNodes, Reason]),
 			{noreply, State}
 	end;
 
-handle_info({config_request, From}, State=#state{config=Config}) -> 
+handle_info({config_request, Node, From}, State=#state{config=Config}) -> 
 	From ! {config_response, Config},
-	{noreply, State};
+	columbo:add_node(Node),
+	case oblivion_conf:update_nodes(Config) of
+		{ok, Config1} ->
+			{noreply, State#state{config=Config1}};
+		_ -> {noreply, State}
+	end;
 
 handle_info({startup, RemoteConfig}, State=#state{config=OldConfig}) -> 
+	Nodes = oblivion_conf:nodes(RemoteConfig, import),
+	columbo:add_nodes(Nodes),
 	case oblivion_conf:empty(OldConfig) of
 		true ->
-			Nodes = oblivion_conf:nodes(RemoteConfig, import),
-			columbo:add_nodes(Nodes),
 			Caches = oblivion_conf:caches(RemoteConfig),
 			lists:foreach(fun({CacheName, Options}) ->
 						cache_setup(CacheName, Options)
 				end, Caches),
-			case oblivion_conf:write(Nodes, Caches) of
-				{ok, Config} -> {noreply, State=#state{config=Config}};
+			Nodes = oblivion_conf:nodes(RemoteConfig, import),
+			columbo:add_nodes(Nodes),
+			case oblivion_conf:write(columbo:known_nodes(), Caches) of
+				{ok, Config} -> {noreply, State#state{config=Config}};
 				{error, Reason} ->
 					error_logger:error_msg("~p: Error saving configuration ~p: ~p\n", [?MODULE, RemoteConfig, Reason]),
 					{noreply, State}
 			end;
-		false -> {noreply, State}
+		false -> 
+			case oblivion_conf:update_nodes(OldConfig) of
+				{ok, Config} -> {noreply, State#state{config=Config}};
+				_ -> {noreply, State}
+			end
 	end;
 
 handle_info(_Info, State) -> 
@@ -266,7 +270,7 @@ load_persistence() ->
 			lists:foreach(fun({CacheName, Options}) ->
 						cache_setup(CacheName, Options)
 				end, Caches),
-			oblivion_conf:write(Nodes, Caches);
+			oblivion_conf:write(columbo:known_nodes(), Caches);
 		{error, Reason} -> {error, Reason}
 	end.
 
@@ -280,7 +284,7 @@ unique([H|T], Nodes) ->
 request_config([]) -> 0;
 request_config(Nodes) ->
 	lists:foldl(fun(Node, Acc) -> 
-				{?MODULE, Node} ! {config_request, self()}, 
+				{?MODULE, Node} ! {config_request, node(), self()}, 
 				Acc + 1 
 		end, 0, Nodes).
 

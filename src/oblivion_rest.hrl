@@ -83,6 +83,7 @@
 -define(INVALID_VERSION_ERROR, ?ERROR(?STATUS_409, <<"Specified version is not the latest for target key">>)).
 -define(INVALID_JSON_ERROR, ?ERROR(?STATUS_400, <<"The body is not a valid json">>)).
 -define(DUPLICATED_CACHE_ERROR, ?ERROR(?STATUS_412, <<"Cache already exists">>)).
+-define(DUPLICATED_NODE_ERROR, ?ERROR(?STATUS_412, <<"Node was already part of the cluster">>)).
 
 %% ====================================================================
 %% TAGS
