@@ -204,8 +204,6 @@ handle_info({startup, RemoteConfig}, State=#state{config=OldConfig}) ->
 			lists:foreach(fun({CacheName, Options}) ->
 						cache_setup(CacheName, Options)
 				end, Caches),
-			Nodes = oblivion_conf:nodes(RemoteConfig, import),
-			columbo:add_nodes(Nodes),
 			case oblivion_conf:write(columbo:known_nodes(), Caches) of
 				{ok, Config} -> {noreply, State#state{config=Config}};
 				{error, Reason} ->
