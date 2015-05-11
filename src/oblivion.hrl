@@ -1,6 +1,5 @@
-%%
 %% Copyright 2014 Joaquim Rocha <jrocha@gmailbox.org>
-%% 
+%%
 %% Licensed under the Apache License, Version 2.0 (the "License");
 %% you may not use this file except in compliance with the License.
 %% You may obtain a copy of the License at
@@ -14,23 +13,4 @@
 %% limitations under the License.
 %%
 
-{application, oblivion, [
-	{description, "Distributed cache service for JSON documents"},
-	{vsn, "0.5.0"},
-	{modules, [
-	]},
-	{registered, [
-		oblivion
-	]},
-	{applications, [
-		kernel,
-		stdlib,
-		gibreel,
-		kill_bill
-	]},
-	{mod, {oblivion_app, []}},
-	{env, [
-		{oblivion_http_port, 12522},
-		{oblivion_persistence_file, "persistence.conf"}
-	]}
-]}.
+-define(SERVER_NAME, oblivion).

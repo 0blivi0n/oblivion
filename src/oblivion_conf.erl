@@ -31,8 +31,8 @@
 %% ====================================================================
 -export([new/0]).
 -export([read/0, write/1, write/2, delete/0]).
--export([nodes/1, nodes/2, caches/1]).
--export([update_nodes/1]).
+-export([nodes/1, caches/1]).
+-export([update/1]).
 -export([add_cache/3, delete_cache/2]).
 -export([empty/1]).
 
@@ -64,13 +64,9 @@ delete() -> write(new()).
 
 nodes(?CONFIG_DATA(Nodes, _)) -> Nodes.
 
-nodes(?CONFIG_DATA(Nodes, _), Operation) -> nodes(Nodes, Operation);
-nodes(Nodes, import) -> lists:delete(node(), Nodes);
-nodes(Nodes, export) -> Nodes.
-
 caches(?CONFIG_DATA(_, Caches)) -> Caches.
 
-update_nodes(?CONFIG_DATA(_, Caches)) ->
+update(?CONFIG_DATA(_, Caches)) ->
 	Config = ?CONFIG_DATA(columbo:known_nodes(), Caches),
 	case write(Config) of
 		ok -> {ok, Config};

@@ -15,11 +15,13 @@
 
 -module(oblivion_server).
 
+-include("oblivion.hrl").
 -include_lib("gibreel/include/gibreel.hrl").
+-include_lib("columbo/include/columbo_notify.hrl").
 
 -behaviour(gen_server).
 
--define(SERVER, {local, ?MODULE}).
+-define(SERVER, {local, ?SERVER_NAME}).
 
 -define(SYNC_TIMEOUT, 2000).
 
@@ -44,24 +46,24 @@ add_node(Node) ->
 		{error, _} = Error -> Error;
 		ok ->
 			case net_adm:ping(Node) of
-				pong -> gen_server:call(?MODULE, {add_node, Node});
+				pong -> gen_server:call(?SERVER_NAME, {add_node, Node});
 				pang -> {error, <<"Node isn't responding">>}
 			end
 	end.
 
 delete_node(Node) ->
-	gen_server:call(?MODULE, {delete_node, Node}).
+	gen_server:call(?SERVER_NAME, {delete_node, Node}).
 
 get_node_port(Node) when Node /= node() ->
-	gen_server:call(?MODULE, {node_port, Node});
+	gen_server:call(?SERVER_NAME, {node_port, Node});
 get_node_port(_Node) ->
 	get_node_port().
 
 create_cache(CacheName, Options) ->
-	gen_server:call(?MODULE, {create_cache, CacheName, Options}).
+	gen_server:call(?SERVER_NAME, {create_cache, CacheName, Options}).
 
 delete_cache(CacheName) ->
-	gen_server:call(?MODULE, {delete_cache, CacheName}).
+	gen_server:call(?SERVER_NAME, {delete_cache, CacheName}).
 
 %% ====================================================================
 %% Behavioural functions
@@ -74,10 +76,11 @@ init([]) ->
 	process_flag(trap_exit, true),
 	case load_persistence() of
 		{error, Reason} -> 
-			error_logger:error_msg("~p fail to start because [~p]\n", [?MODULE, Reason]),
+			error_logger:error_msg("~p fail to start because [~p]\n", [?SERVER_NAME, Reason]),
 			{stop,Reason};
 		{ok, Config} -> 
-			error_logger:info_msg("~p starting on [~p]...\n", [?MODULE, self()]),
+			error_logger:info_msg("~p starting on [~p]...\n", [?SERVER_NAME, self()]),
+			columbo:subscribe(?SERVER_NAME),
 			{ok, #state{config=Config, servers=dict:new()}}
 	end.
 
@@ -86,7 +89,7 @@ handle_call({node_port, Node}, _From, State=#state{servers=Servers}) ->
 	case dict:find(Node, Servers) of
 		{ok, Value} -> {reply, Value, State};
 		error -> 
-			Value = gen_server:call({?MODULE, Node}, {node_port}),
+			Value = gen_server:call({?SERVER_NAME, Node}, {node_port}),
 			Servers1 = dict:store(Node, Value, Servers),
 			{reply, Value, State#state{servers=Servers1}}
 	end;
@@ -123,11 +126,11 @@ handle_call({add_node, Node}, _From, State=#state{config=Config}) ->
 		true -> {reply, duplicated, State};
 		false -> 
 			columbo:add_node(Node),
-			case oblivion_conf:update_nodes(Config) of
+			case oblivion_conf:update(Config) of
 				{ok, Config1} ->
-					Nodes1 = oblivion_conf:nodes(Config1),
-					notify({nodes, oblivion_conf:nodes(Nodes1, export)}),
-					notify({startup, Config1}, Node),
+					ExportNodes = [node(), columbo:known_nodes()],
+					notify({nodes, ExportNodes}, Nodes),
+					notify({startup, ExportNodes, oblivion_conf:caches(Config1)}, Node),
 					{reply, ok, State#state{config=Config1}};
 				Other -> {reply, Other, State}
 			end
@@ -138,10 +141,10 @@ handle_call({delete_node, Node}, _From, State=#state{config=Config}) ->
 	case lists:member(Node, Nodes) of
 		true -> 
 			columbo:delete_node(Node),
-			case oblivion_conf:update_nodes(Config) of
+			case oblivion_conf:update(Config) of
 				{ok, Config1} ->
-					Nodes1 = oblivion_conf:nodes(Config1),
-					notify({nodes, oblivion_conf:nodes(Nodes1, export)}),
+					ExportNodes = [node(), columbo:known_nodes()],
+					notify({nodes, ExportNodes}),
 					{reply, ok, State#state{config=Config1}};
 				Other -> {reply, Other, State}
 			end;			
@@ -156,7 +159,8 @@ handle_info({create_cache, CacheName, Options}, State=#state{config=Config}) ->
 	case cache_setup(CacheName, Options) of
 		ok -> 
 			case oblivion_conf:add_cache(CacheName, Options, Config) of
-				{ok, Config1} -> {noreply, State#state{config=Config1}};
+				{ok, Config1} -> 
+					{noreply, State#state{config=Config1}};
 				{error, Reason} ->
 					error_logger:error_msg("~p: Error saving cache configuration ~p: ~p\n", [?MODULE, CacheName, Reason]),
 					{noreply, State}
@@ -178,7 +182,7 @@ handle_info({delete_cache, CacheName}, State=#state{config=Config}) ->
 
 handle_info({nodes, NewNodes}, State=#state{config=Config}) -> 
 	columbo:add_nodes(NewNodes),
-	case oblivion_conf:update_nodes(Config) of
+	case oblivion_conf:update(Config) of
 		{ok, Config1} ->
 			{noreply, State#state{config=Config1}};
 		{error, Reason} ->
@@ -186,32 +190,45 @@ handle_info({nodes, NewNodes}, State=#state{config=Config}) ->
 			{noreply, State}
 	end;
 
+handle_info(?COLUMBO_NOTIFY(_Operation, ?SERVER_NAME, Node), State=#state{config=Config}) -> 
+	Nodes = oblivion_conf:nodes(Config),
+	case lists:member(Node, Nodes) of
+		true -> {noreply, State};
+		false ->
+			case oblivion_conf:update(Config) of
+				{ok, Config1} ->
+					{noreply, State#state{config=Config1}};
+				{error, Reason} ->
+					error_logger:error_msg("~p: Error updating node configuration: ~p\n", [?MODULE, Reason]),
+					{noreply, State}
+			end
+	end;
+
 handle_info({config_request, Node, From}, State=#state{config=Config}) -> 
 	From ! {config_response, Config},
 	columbo:add_node(Node),
-	case oblivion_conf:update_nodes(Config) of
+	case oblivion_conf:update(Config) of
 		{ok, Config1} ->
 			{noreply, State#state{config=Config1}};
 		_ -> {noreply, State}
 	end;
 
-handle_info({startup, RemoteConfig}, State=#state{config=OldConfig}) -> 
-	Nodes = oblivion_conf:nodes(RemoteConfig, import),
-	columbo:add_nodes(Nodes),
+handle_info({startup, RemoteNodes, RemoteCaches}, State=#state{config=OldConfig}) -> 
+	columbo:add_nodes(RemoteNodes),
 	case oblivion_conf:empty(OldConfig) of
 		true ->
-			Caches = oblivion_conf:caches(RemoteConfig),
 			lists:foreach(fun({CacheName, Options}) ->
 						cache_setup(CacheName, Options)
-				end, Caches),
-			case oblivion_conf:write(columbo:known_nodes(), Caches) of
-				{ok, Config} -> {noreply, State#state{config=Config}};
+				end, RemoteCaches),
+			case oblivion_conf:write(columbo:known_nodes(), RemoteCaches) of
+				{ok, Config} -> 
+					{noreply, State#state{config=Config}};
 				{error, Reason} ->
-					error_logger:error_msg("~p: Error saving configuration ~p: ~p\n", [?MODULE, RemoteConfig, Reason]),
+					error_logger:error_msg("~p: Error saving configuration ~p: ~p\n", [?MODULE, RemoteCaches, Reason]),
 					{noreply, State}
 			end;
 		false -> 
-			case oblivion_conf:update_nodes(OldConfig) of
+			case oblivion_conf:update(OldConfig) of
 				{ok, Config} -> {noreply, State#state{config=Config}};
 				_ -> {noreply, State}
 			end
@@ -221,7 +238,9 @@ handle_info(_Info, State) ->
 	{noreply, State}.
 
 %% terminate
-terminate(_Reason, _State) -> ok.
+terminate(_Reason, _State) -> 
+	columbo:unsubscribe(?SERVER_NAME),
+	ok.
 
 %% code_change
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
@@ -251,9 +270,12 @@ set(PropList, [H={Key,_}|T]) ->
 	PropList1 = lists:keystore(Key, 1, PropList, H),
 	set(PropList1, T).
 
-notify(Msg, Node) -> {?MODULE, Node} ! Msg.
+notify(Msg, Nodes) when is_list(Nodes)-> 
+	columbo:send_to_nodes(?SERVER_NAME, Nodes, Msg);
+notify(Msg, Node) -> 
+	{?SERVER_NAME, Node} ! Msg.
 
-notify(Msg) -> columbo:send_to_all(?MODULE, Msg).
+notify(Msg) -> columbo:send_to_all(?SERVER_NAME, Msg).
 
 load_persistence() ->
 	case oblivion_conf:read() of
@@ -262,7 +284,7 @@ load_persistence() ->
 			ConnectionNodes = unique(SavedNodes, nodes()),
 			RequestCount = request_config(ConnectionNodes),
 			RemoteConfig = receive_config(RequestCount, SavedConfig),
-			Nodes = oblivion_conf:nodes(RemoteConfig, import),
+			Nodes = oblivion_conf:nodes(RemoteConfig),
 			columbo:add_nodes(Nodes),
 			Caches = oblivion_conf:caches(RemoteConfig),
 			lists:foreach(fun({CacheName, Options}) ->
@@ -282,7 +304,7 @@ unique([H|T], Nodes) ->
 request_config([]) -> 0;
 request_config(Nodes) ->
 	lists:foldl(fun(Node, Acc) -> 
-				{?MODULE, Node} ! {config_request, node(), self()}, 
+				{?SERVER_NAME, Node} ! {config_request, node(), self()}, 
 				Acc + 1 
 		end, 0, Nodes).
 

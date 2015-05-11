@@ -157,7 +157,7 @@ handle(<<"GET">>, [<<"node">>, NodeName, <<"remove">>], Req) ->
 
 handle(<<"POST">>, [<<"node">>, <<"remove">>], Req) ->
 	{Args, Req1} = kb_action_helper:get_args(Req),
-	Alert = case lists:keyfind(<<"name">>, 1, Args) of
+	Alert = case lists:keyfind(<<"node">>, 1, Args) of
 		{_, NodeName} ->
 			case oblivion_api:delete_node(NodeName) of
 				ok -> 

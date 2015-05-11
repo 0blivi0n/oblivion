@@ -16,6 +16,7 @@
 
 -module(oblivion_api).
 
+-include("oblivion.hrl").
 -include("oblivion_api.hrl").
 -include_lib("gibreel/include/gibreel.hrl").
 
@@ -148,7 +149,7 @@ nodes(Sort) ->
 
 node_list() -> [node()|columbo:known_nodes()].
 
-online_node_list() -> [node()|columbo:online_nodes()].
+online_node_list() -> [node()|columbo:whereis_service(?SERVER_NAME)].
 
 add_node(NodeName) when is_binary(NodeName) -> 
 	Node = binary_to_atom(NodeName, utf8),
