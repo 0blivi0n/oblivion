@@ -1,6 +1,6 @@
 {% extends "obv_layout.dtl" %}
 
-{% block header %}caches / delete{% endblock %}
+{% block header %}caches / {{cache}} / delete{% endblock %}
 
 {% block content %}
 <div class="alert alert-danger" role="alert">
