@@ -1,6 +1,6 @@
 {% extends "obv_layout.dtl" %}
 
-{% block header %}cluster / remove{% endblock %}
+{% block header %}cluster / {{node}} / remove{% endblock %}
 
 {% block content %}
 <div class="alert alert-warning" role="alert">
