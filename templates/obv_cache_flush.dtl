@@ -1,6 +1,6 @@
 {% extends "obv_layout.dtl" %}
 
-{% block header %}caches / flush{% endblock %}
+{% block header %}caches / {{cache}} / flush{% endblock %}
 
 {% block content %}
 
