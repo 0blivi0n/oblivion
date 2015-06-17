@@ -1,5 +1,5 @@
 %%
-%% Copyright 2014 Joaquim Rocha <jrocha@gmailbox.org>
+%% Copyright 2014-15 Joaquim Rocha <jrocha@gmailbox.org>
 %%
 %% Licensed under the Apache License, Version 2.0 (the "License");
 %% you may not use this file except in compliance with the License.
@@ -245,7 +245,7 @@ max_size(Args) ->
 				false -> {error, <<"Invalid request! Please provide a value for 'Max size'.">>};
 				{_, <<>>} -> {error, <<"Invalid request! Please provide a value for 'Max size'.">>};
 				{_, MaxSize} ->
-					case integer(MaxSize) of
+					case oblivion_util:integer(MaxSize) of
 						error -> {error, <<"Invalid request! The field 'Max size' must be a valid integer.">>};
 						Value -> {<<"maxSize">>, Value}
 					end
@@ -260,17 +260,10 @@ max_age(Args) ->
 				false -> {error, <<"Invalid request! Please provide a value for 'Max age'.">>};
 				{_, <<>>} -> {error, <<"Invalid request! Please provide a value for 'Max age'.">>};
 				{_, MaxAge} ->
-					case integer(MaxAge) of
+					case oblivion_util:integer(MaxAge) of
 						error -> {error, <<"Invalid request! The field 'Max age' must be a valid integer.">>};
 						Value -> {<<"maxAge">>, Value}
 					end
 			end;
 		_ -> {ok, no_value}
-	end.
-
-integer(Value) ->
-	List = binary_to_list(Value),
-	case string:to_integer(List) of
-		{Int, []} -> Int;
-		_ -> error
 	end.

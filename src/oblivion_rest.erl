@@ -1,5 +1,5 @@
 %%
-%% Copyright 2014 Joaquim Rocha <jrocha@gmailbox.org>
+%% Copyright 2014-15 Joaquim Rocha <jrocha@gmailbox.org>
 %%
 %% Licensed under the Apache License, Version 2.0 (the "License");
 %% you may not use this file except in compliance with the License.
@@ -176,7 +176,7 @@ handle(_Method, _Path, Req) -> ?rest_error(?OPERATION_NOT_SUPPORTED_ERROR, Req).
 
 options([], _Select) -> []; 
 options(Args, Select) -> 
-	Options = lists:filtermap(fun({?VERSION_TAG, Version}) -> {true, {?OPTION_VERSION, Version}};
+	Options = lists:filtermap(fun({?VERSION_TAG, Version}) -> {true, {?OPTION_VERSION, oblivion_util:integer(Version)}};
 				({?SORT_TAG, <<"true">>}) -> {true, {?SORT_TAG, true}};
 				({?SORT_TAG, <<"false">>}) -> {true, {?SORT_TAG, false}};
 				({?INCLUDE_CONFIG_TAG, <<"true">>}) -> {true, {?INCLUDE_CONFIG_TAG, true}};
