@@ -26,6 +26,7 @@
 
 -define(KEY_SERVER, <<"server">>).
 -define(KEY_PORT, <<"port">>).
+-define(KEY_HTTP_PORT, <<"http">>).
 -define(KEY_BROADCAST, <<"broadcast">>).
 -define(KEY_ONLINE, <<"online">>).
 

@@ -19,23 +19,24 @@
 -include("oblivion_protocol.hrl").
 -include_lib("gibreel/include/gibreel.hrl").
 
--behaviour(ecall_handler).
+-behaviour(mercury_handler).
 
 %% ====================================================================
 %% API functions
 %% ====================================================================
 -export([handle/4]).
 
-%% handle(Operation :: binary(), Resource :: list(), Params :: list(), Payload :: empty | any()) -> 
-%%     {reply, Status :: integer(), Payload :: any()} 
-%%	 | {reply, Status :: integer()}.
+%% handle(Operation :: binary(), Resource :: list(), Params :: list(), Payload :: empty | any()) 
+%%	-> {reply, Status :: integer(), Params :: list(), Payload :: any()} 
+%%	| {reply, Status :: integer(), Params :: list()}
+%%	| {reply, Status :: integer()}.
 
 %% System
 
 % GET system
 handle(<<"GET">>, [<<"system">>], [], empty) ->
 	Payload = oblivion_api:system(),
-	success_reply(200, Payload);
+	success_reply(200, [], Payload);
 
 % GET /nodes[?sort=<true|false>]
 handle(<<"GET">>, [<<"nodes">>], Args, empty) ->
@@ -43,7 +44,7 @@ handle(<<"GET">>, [<<"nodes">>], Args, empty) ->
 	Sort = option(?SORT_TAG, Options, false),
 	Nodes = oblivion_api:nodes(Sort),
 	Reply = {[{<<"nodes">>, Nodes}]},
-	success_reply(200, Reply);
+	success_reply(200, [], Reply);
 
 %% Data management
 
@@ -54,8 +55,7 @@ handle(<<"GET">>, [<<"caches">>, CacheName, <<"keys">>, Key], [], empty) ->
 		not_found -> error_reply(?KEY_NOT_EXISTS_ERROR);
 		error -> error_reply(?UNEXPECTED_ERROR);
 		{ok, Value, Version} -> 
-			Payload = {[{?VERSION_TAG, Version}, {?VALUE_TAG, Value}]},
-			success_reply(200, Payload)
+			success_reply(200, [{?VERSION_TAG, Version}], Value)
 	end;	
 
 % PUT /caches/{cache}/keys/{key}[?version={versionID}]
@@ -66,7 +66,7 @@ handle(<<"PUT">>, [<<"caches">>, CacheName, <<"keys">>, Key], Args, Value) ->
 			case oblivion_api:put(CacheName, Key, Value, Options) of
 				no_cache -> error_reply(?CACHE_NOT_EXISTS_ERROR);
 				invalid_version -> error_reply(?INVALID_VERSION_ERROR);
-				{ok, Version} -> success_reply(201, Version)
+				{ok, Version} -> success_reply(201, [{?VERSION_TAG, Version}])
 			end;
 		_ -> error_reply(?INVALID_JSON_ERROR)
 	end; 
@@ -78,7 +78,7 @@ handle(<<"VERSION">>, [<<"caches">>, CacheName, <<"keys">>, Key], [], empty) ->
 		not_found -> error_reply(?KEY_NOT_EXISTS_ERROR);
 		error -> error_reply(?UNEXPECTED_ERROR);
 		{ok, Version} -> 
-			success_reply(200, Version)			
+			success_reply(200, [{?VERSION_TAG, Version}])			
 	end;
 
 % DELETE /caches/{cache}/keys/{key}[?version={versionID}] 
@@ -105,7 +105,7 @@ handle(<<"GET">>, [<<"caches">>, CacheName, <<"keys">>], Args, empty) ->
 	end,
 	case Reply of
 		no_cache -> error_reply(?CACHE_NOT_EXISTS_ERROR);
-		_ -> success_reply(200, Reply)
+		_ -> success_reply(200, [], Reply)
 	end;
 
 % DELETE /caches/{cache}/keys 
@@ -114,6 +114,18 @@ handle(<<"DELETE">>, [<<"caches">>, CacheName, <<"keys">>], [], empty) ->
 		no_cache -> error_reply(?CACHE_NOT_EXISTS_ERROR);
 		ok -> success_reply(202)
 	end;
+
+%% Cache management
+
+% GET /caches[?sort=<true|false>[&include_config=<true|false>[&include_size=<true|false>]]]
+handle(<<"GET">>, [<<"caches">>], Args, empty) ->
+	Options = options(Args, [?SORT_TAG, ?INCLUDE_CONFIG_TAG, ?INCLUDE_SIZE_TAG]),
+	Sort = option(?SORT_TAG, Options, false),
+	IncludeConfig = option(?INCLUDE_CONFIG_TAG, Options, false),
+	IncludeSize = option(?INCLUDE_SIZE_TAG, Options, false),
+	Caches = oblivion_api:caches(IncludeConfig, IncludeSize, Sort),
+	Reply = {[{<<"caches">>, Caches}]},
+	success_reply(200, [], Reply);
 
 handle(_Operation, _Resource, _Params, _Payload) -> 
 	error_reply(?OPERATION_NOT_SUPPORTED_ERROR).
@@ -148,9 +160,12 @@ option(Tag, Options, Default) ->
 success_reply(Status) ->
 	{reply, Status}.
 
-success_reply(Status, Payload) ->
+success_reply(Status, Params) ->
+	{reply, Status, Params}.
+
+success_reply(Status, Params, Payload) ->
 	Reply = json(Payload),
-	{reply, Status, Reply}.
+	{reply, Status, Params, Reply}.
 
 json(Data) ->
 	jsondoc:ensure(Data).

@@ -133,10 +133,11 @@ nodes(Sort) ->
 				Online = lists:member(Node, OnlineNodes),
 				ServerData = case Online of
 					true ->
-						{Server, Port, Broadcast} = oblivion_server:get_node_port(Node),
+						{Server, Port, HttpPort, Broadcast} = oblivion_server:get_node_port(Node),
 						[
 							{?KEY_SERVER, list_to_binary(Server)},
 							{?KEY_PORT, Port},
+							{?KEY_HTTP_PORT, HttpPort},
 							{?KEY_BROADCAST, Broadcast}
 							];
 					_ -> []

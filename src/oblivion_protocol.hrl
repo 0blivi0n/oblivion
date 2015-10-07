@@ -34,8 +34,6 @@
 
 -define(ERROR_REASON_TAG, <<"reason">>).
 
--define(VALUE_TAG, <<"value">>).
-
 -define(VERSION_TAG, <<"version">>).
 -define(SORT_TAG, <<"sort">>).
 -define(INCLUDE_CONFIG_TAG, <<"include_config">>).

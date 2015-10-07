@@ -317,9 +317,10 @@ receive_config(_Count, DefaultConfig) ->
 
 get_node_port() ->
 	Server = get_host_ip(),
-	{ok, Port} = application:get_env(oblivion, oblivion_http_port),
+	{ok, HttpPort} = application:get_env(oblivion, oblivion_http_port),
+	{ok, Port} = application:get_env(oblivion, oblivion_protocol_port),
 	{ok, Broadcast} = application:get_env(columbo, udp_port),
-	{Server, Port, Broadcast}.
+	{Server, Port, HttpPort, Broadcast}.
 
 get_host_ip() ->
 	Localhost = net_adm:localhost(),

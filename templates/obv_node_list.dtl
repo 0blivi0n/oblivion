@@ -17,9 +17,14 @@
 				{% if node.online %}
 				<div class="row">
 					<div class="col-sm-12">
-						<label>Server:</label> {{node.server}}:{{node.port}}
+						<label>HTTP server:</label> {{node.server}}:{{node.http}}
 					</div>
 				</div>	
+				<div class="row">
+					<div class="col-sm-12">
+						<label>Protocol:</label> {{node.server}}:{{node.port}}
+					</div>
+				</div>					
 				<div class="row">
 					<div class="col-sm-12">
 						<label>Broadcast port:</label> {{node.broadcast}}
