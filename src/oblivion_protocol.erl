@@ -43,7 +43,7 @@ handle(<<"GET">>, [<<"nodes">>], Args, empty) ->
 	Options = options(Args, [?SORT_TAG]),
 	Sort = option(?SORT_TAG, Options, false),
 	Nodes = oblivion_api:nodes(Sort),
-	Reply = {[{<<"nodes">>, Nodes}]},
+	Reply = [{<<"nodes">>, Nodes}],
 	success_reply(200, [], Reply);
 
 %% Data management
@@ -99,7 +99,7 @@ handle(<<"GET">>, [<<"caches">>, CacheName, <<"keys">>], Args, empty) ->
 			Sort = option(?SORT_TAG, Options, false),
 			case oblivion_api:keys(CacheName, Sort) of
 				no_cache -> no_cache;
-				KeyList -> {[{<<"keys">>, KeyList}]}
+				KeyList -> [{<<"keys">>, KeyList}]
 			end;
 		false -> oblivion_api:size(CacheName)
 	end,
@@ -124,7 +124,7 @@ handle(<<"GET">>, [<<"caches">>], Args, empty) ->
 	IncludeConfig = option(?INCLUDE_CONFIG_TAG, Options, false),
 	IncludeSize = option(?INCLUDE_SIZE_TAG, Options, false),
 	Caches = oblivion_api:caches(IncludeConfig, IncludeSize, Sort),
-	Reply = {[{<<"caches">>, Caches}]},
+	Reply = [{<<"caches">>, Caches}],
 	success_reply(200, [], Reply);
 
 handle(_Operation, _Resource, _Params, _Payload) -> 
@@ -136,15 +136,11 @@ handle(_Operation, _Resource, _Params, _Payload) ->
 
 options([], _Select) -> []; 
 options(Args, Select) when is_list(Args) -> 
-	Options = lists:filtermap(fun({?VERSION_TAG, Version}) -> {true, {?OPTION_VERSION, oblivion_util:integer(Version)}};
-				({?SORT_TAG, <<"true">>}) -> {true, {?SORT_TAG, true}};
-				({?SORT_TAG, <<"false">>}) -> {true, {?SORT_TAG, false}};
-				({?INCLUDE_CONFIG_TAG, <<"true">>}) -> {true, {?INCLUDE_CONFIG_TAG, true}};
-				({?INCLUDE_CONFIG_TAG, <<"false">>}) -> {true, {?INCLUDE_CONFIG_TAG, false}};				
-				({?INCLUDE_SIZE_TAG, <<"true">>}) -> {true, {?INCLUDE_SIZE_TAG, true}};
-				({?INCLUDE_SIZE_TAG, <<"false">>}) -> {true, {?INCLUDE_SIZE_TAG, false}};	
-				({?LIST_TAG, <<"true">>}) -> {true, {?LIST_TAG, true}};
-				({?LIST_TAG, <<"false">>}) -> {true, {?LIST_TAG, false}};									 								 	   
+	Options = lists:filtermap(fun({?VERSION_TAG, Version}) -> {true, {?OPTION_VERSION, Version}};
+				({?SORT_TAG, _}) -> true;
+				({?INCLUDE_CONFIG_TAG, _}) -> true;			
+				({?INCLUDE_SIZE_TAG, _}) -> true;
+				({?LIST_TAG, _}) -> true;								 								 	   
 				(_) -> false
 			end, Args),
 	lists:filter(fun({Key, _}) -> lists:member(Key, Select) end, Options);
