@@ -27,6 +27,6 @@ start_link() -> supervisor:start_link(?MODULE, []).
 init([]) ->
 	Oblivion = {oblivion_server, {oblivion_server, start_link, []}, permanent, infinity, worker, [oblivion_server]},
 	RPCPort = application:get_env(oblivion, oblivion_protocol_port, 12521),
-	Mercury = {mercury, {mercury, start, [oblivion_rpc, RPCPort, oblivion_protocol]}, permanent, infinity, supervisor, [mercury]},
+	Mercury = {mercury, {mercury, start, [oblivion_rpc, RPCPort, oblivion_protocol]}, permanent, 2000, supervisor, [mercury]},
 	Procs = [Oblivion, Mercury],
 	{ok, {{one_for_one, 5, 60}, Procs}}.
