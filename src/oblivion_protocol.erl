@@ -169,7 +169,7 @@ json(Data) ->
 error_reply(Error) ->
 	?ERROR(Status, Reason) = Error,			
 	Reply = {[{?ERROR_REASON_TAG, Reason}]},
-	{reply, Status, Reply}.
+	{reply, Status, [], Reply}.
 
 is_ejson(Term = {L}) when is_list(L) -> jsondoc:is_jsondoc(Term);
 is_ejson(Term) when is_list(Term) -> 
