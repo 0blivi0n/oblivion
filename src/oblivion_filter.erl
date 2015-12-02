@@ -54,7 +54,7 @@ is_valid_accept([Header|T]) ->
 		_ -> true
 	end.
 
-accept(?HEADER_VALUE_CONTENT_TYPE_JSON) -> true;
+accept(<<"application/json">>) -> true;
 accept(<<"application/*">>) -> true;
 accept(<<"*/*">>) -> true;
 accept(<<"*">>) -> true;
