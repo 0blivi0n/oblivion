@@ -20,47 +20,51 @@
 
 -behaviour(kb_filter_handler).
 
+-define(VAL_CONTENT, {fun validate_content/1, ?INVALID_CONTENT_HEADER_ERROR}).
+-define(VAL_ACCEPT, {fun validate_accept/1, ?INVALID_ACCEPT_HEADER_ERROR}).
+
 %% ====================================================================
 %% API functions
 %% ====================================================================
 -export([handle/3]).
 
-handle(<<"PUT">>, _Path, Req) -> validate_content_accept(Req);
-handle(<<"POST">>, _Path, Req) -> validate_content_accept(Req);
-handle(_Method, _Path, Req) -> validate_accept(Req).
+handle(<<"PUT">>, _Path, Req) -> validate([?VAL_CONTENT, ?VAL_ACCEPT], Req);
+handle(<<"POST">>, _Path, Req) -> validate([?VAL_CONTENT, ?VAL_ACCEPT], Req);
+handle(_Method, _Path, Req) -> validate([?VAL_ACCEPT], Req).
 
 %% ====================================================================
 %% Internal functions
 %% ====================================================================
 
-validate_content_accept(Req) ->
+validate([], Req) -> {next, [], Req};
+validate([{Fun, Error}|T], Req) ->
+	case Fun(Req) of
+		{ok, Req1} -> validate(T, Req1);
+		{error, Req1} -> ?rest_error(Error, Req1)
+	end.
+
+validate_content(Req) ->
 	{ContentType, Req1} = kb_action_helper:get_content_type(Req),
 	case header_value(ContentType) of
-		?HEADER_VALUE_CONTENT_TYPE_JSON -> validate_accept(Req1);
-		_ -> ?rest_error(?INVALID_CONTENT_HEADER_ERROR, Req1)
+		?HEADER_VALUE_CONTENT_TYPE_JSON -> {ok, Req1};
+		_ -> {error, Req1}
 	end.
-
-validate_accept(Req) ->
-	{AcceptList, Req1} = kb_action_helper:get_accept_header(Req),
-	case is_valid_accept(AcceptList) of
-		true -> {next, [], Req1};
-		false -> ?rest_error(?INVALID_ACCEPT_HEADER_ERROR, Req1)
-	end.
-
-is_valid_accept([]) -> false;
-is_valid_accept([Header|T]) -> 
-	case accept(Header) of
-		false -> is_valid_accept(T);
-		_ -> true
-	end.
-
-accept(<<"application/json">>) -> true;
-accept(<<"application/*">>) -> true;
-accept(<<"*/*">>) -> true;
-accept(<<"*">>) -> true;
-accept(_) -> false.
 
 header_value(Header) ->
 	Parts = binary:split(Header, <<";">>),
 	[Value | _] = Parts,
 	Value.
+
+validate_accept(Req) ->
+	{AcceptList, Req1} = kb_action_helper:get_accept_header(Req),
+	case is_valid_accept(AcceptList) of
+		true -> {ok, Req1};
+		false -> {error, Req1}
+	end.
+
+is_valid_accept([]) -> false;
+is_valid_accept([<<"application/json">>|_]) -> true;
+is_valid_accept([<<"application/*">>|_]) -> true;
+is_valid_accept([<<"*/*">>|_]) -> true;
+is_valid_accept([<<"*">>|_]) -> true;
+is_valid_accept([_|T]) -> is_valid_accept(T).
