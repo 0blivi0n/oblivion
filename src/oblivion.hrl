@@ -1,4 +1,4 @@
-%% Copyright 2014 Joaquim Rocha <jrocha@gmailbox.org>
+%% Copyright 2014-16 Joaquim Rocha <jrocha@gmailbox.org>
 %%
 %% Licensed under the Apache License, Version 2.0 (the "License");
 %% you may not use this file except in compliance with the License.
@@ -14,3 +14,6 @@
 %%
 
 -define(SERVER_NAME, oblivion).
+
+-define(OBL_FEED_NODES, <<"obl_node_events">>).
+-define(OBL_FEED_CACHES, <<"obl_cache_events">>).

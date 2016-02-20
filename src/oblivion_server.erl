@@ -1,4 +1,4 @@
-%% Copyright 2014 Joaquim Rocha <jrocha@gmailbox.org>
+%% Copyright 2014-16 Joaquim Rocha <jrocha@gmailbox.org>
 %%
 %% Licensed under the Apache License, Version 2.0 (the "License");
 %% you may not use this file except in compliance with the License.
@@ -17,7 +17,8 @@
 
 -include("oblivion.hrl").
 -include_lib("gibreel/include/gibreel.hrl").
--include_lib("columbo/include/columbo_notify.hrl").
+-include_lib("columbo/include/columbo_events.hrl").
+-include_lib("event_broker/include/event_broker.hrl").
 
 -behaviour(gen_server).
 
@@ -80,7 +81,7 @@ init([]) ->
 			{stop,Reason};
 		{ok, Config} -> 
 			error_logger:info_msg("~p starting on [~p]...\n", [?SERVER_NAME, self()]),
-			columbo:subscribe(?SERVER_NAME),
+			eb_filter_by_ref:start_filter(?OBL_FEED_NODES, ?SERVER_NAME),
 			{ok, #state{config=Config, servers=dict:new()}}
 	end.
 
@@ -190,7 +191,8 @@ handle_info({nodes, NewNodes}, State=#state{config=Config}) ->
 			{noreply, State}
 	end;
 
-handle_info(?COLUMBO_NOTIFY(_Operation, ?SERVER_NAME, Node), State=#state{config=Config}) -> 
+handle_info(?NOTIFICATION(Event), State=#state{config=Config}) -> 
+	Node = eb_event:get_property(?COLUMBO_EVENT_PROP_NODE, Event),
 	Nodes = oblivion_conf:nodes(Config),
 	case lists:member(Node, Nodes) of
 		true -> {noreply, State};
@@ -239,7 +241,7 @@ handle_info(_Info, State) ->
 
 %% terminate
 terminate(_Reason, _State) -> 
-	columbo:unsubscribe(?SERVER_NAME),
+	eb_filter_by_ref:stop_filter(?OBL_FEED_NODES),
 	ok.
 
 %% code_change
