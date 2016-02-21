@@ -81,7 +81,7 @@ init([]) ->
 			{stop,Reason};
 		{ok, Config} -> 
 			error_logger:info_msg("~p starting on [~p]...\n", [?SERVER_NAME, self()]),
-			eb_filter_by_ref:start_filter(?OBL_FEED_NODES, ?SERVER_NAME),
+			ok = eb_filter_by_ref:start_filter(?OBL_FEED_NODES, ?SERVER_NAME),
 			{ok, #state{config=Config, servers=dict:new()}}
 	end.
 
