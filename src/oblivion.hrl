@@ -15,5 +15,5 @@
 
 -define(SERVER_NAME, oblivion).
 
--define(OBL_FEED_NODES, <<"obl_node_events">>).
--define(OBL_FEED_CACHES, <<"obl_cache_events">>).
+-define(OBL_FEED_NODES, obl_node_events_feed).
+-define(OBL_FEED_CACHES, obl_cache_events_feed).
